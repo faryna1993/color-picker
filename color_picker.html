@@ -31,14 +31,15 @@
               margin-right: 6px; border: 1px solid rgba(0,0,0,.35);
               background: repeating-conic-gradient(#ccc 0 25%, #fff 0 50%) 0 0/8px 8px; }
   .tab .ok { color: #2e9e4f; margin-left: 4px; }
-  .swatches { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 10px; }
-  .sw { aspect-ratio: 1; border-radius: 10px; border: 2px solid rgba(0,0,0,.2); padding: 0; }
+  .swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; margin-bottom: 10px; }
+  .sw { aspect-ratio: 1; border-radius: 8px; border: 2px solid rgba(0,0,0,.2); padding: 0; }
   .sw.on { border-color: var(--tg-theme-button-color, #2481cc); box-shadow: 0 0 0 2px var(--tg-theme-button-color, #2481cc); }
   .custom { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; }
   input[type=color] { width: 64px; height: 44px; border: none; padding: 0; background: none; }
   input[type=text] { flex: 1; min-width: 0; font-size: 18px; padding: 9px 10px; border-radius: 8px;
                      border: 1px solid #999; text-transform: uppercase; }
-  .offset { background: var(--tg-theme-secondary-bg-color, #eee); border-radius: 12px; padding: 12px 14px; }
+  .offset { background: var(--tg-theme-secondary-bg-color, #eee); border-radius: 12px; padding: 12px 14px;
+            margin-bottom: 14px; }
   .offset label { display: flex; justify-content: space-between; font-size: 15px; margin-bottom: 8px; }
   input[type=range] { width: 100%; }
   .bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px 12px;
@@ -56,6 +57,11 @@
   <p class="hint" id="hint"></p>
   <div id="preview"></div>
 
+  <div class="offset">
+    <label><span>Зміщення фону</span><b id="offval">не обрано</b></label>
+    <input type="range" id="offset" min="1" max="4" step="0.1" value="2">
+  </div>
+
   <div class="seg" id="modes" hidden>
     <button data-m="all">Однакові для всіх слів</button>
     <button data-m="each">Кожне слово окремо</button>
@@ -68,10 +74,6 @@
   <div class="custom">
     <input type="color" id="picker" value="#1e88e5">
     <input type="text" id="hex" maxlength="7" placeholder="#RRGGBB">
-  </div>
-  <div class="offset">
-    <label><span>Зміщення фону</span><b id="offval">не обрано</b></label>
-    <input type="range" id="offset" min="1" max="4" step="0.1" value="2">
   </div>
 </div>
 <div class="bar">
