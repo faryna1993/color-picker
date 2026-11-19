@@ -67,7 +67,6 @@
 <body>
 <div class="wrap">
   <h1>Кольори надпису</h1>
-  <p class="hint" id="hint"></p>
   <div id="preview"></div>
 
   <div class="offset">
@@ -197,11 +196,6 @@
     slider.value = cur.offset;
     document.getElementById("offval").textContent = cur.offset > 0 ? fmt(cur.offset) : "без фону";
     document.getElementById("all-chk").checked = isAll();
-    document.getElementById("hint").textContent = words.length < 2
-      ? ""
-      : isAll()
-        ? "Зміни застосовуються до всього напису. Зніміть галочку або торкніться слова, щоб змінити лише його."
-        : "Змінюєте лише «" + words[state.sel[0]] + "». Торкніться іншого слова, щоб змінити його.";
 
     const missing = [];
     styles.forEach((s, i) => {
