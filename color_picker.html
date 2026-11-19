@@ -34,7 +34,7 @@
               background: repeating-conic-gradient(#ccc 0 25%, #fff 0 50%) 0 0/8px 8px; }
   .tab .ok { color: #2e9e4f; margin-left: 4px; }
   .card { background: var(--tg-theme-secondary-bg-color, #f1f1f1); border-radius: 14px; padding: 8px; margin-bottom: 8px; }
-  .area { display: flex; gap: 10px; height: 125px; }
+  .area { display: flex; gap: 10px; height: 150px; }
   #sv { position: relative; flex: 1; border-radius: 10px; touch-action: none; cursor: crosshair;
         background: linear-gradient(to top, #000, rgba(0,0,0,0)), linear-gradient(to right, #fff, rgba(255,255,255,0)), hsl(var(--hue, 0), 100%, 50%); }
   #hue { position: relative; width: 26px; border-radius: 10px; touch-action: none; cursor: pointer;
@@ -47,7 +47,7 @@
   input[type=text] { flex: 1; min-width: 0; font-size: 15px; padding: 5px 10px; border-radius: 8px;
                      border: 1px solid rgba(0,0,0,.25); text-transform: uppercase; font-family: ui-monospace, monospace;
                      background: var(--tg-theme-bg-color, #fff); color: inherit; }
-  .swatches { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px 4px; }
+  .swatches { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px 4px; }
   .sw { aspect-ratio: 1; border-radius: 50%; border: 1px solid rgba(0,0,0,.25); padding: 0; }
   .sw.on { box-shadow: 0 0 0 2px var(--tg-theme-bg-color, #fff), 0 0 0 4px var(--tg-theme-button-color, #2481cc); }
   .offset { background: var(--tg-theme-secondary-bg-color, #eee); border-radius: 10px; padding: 6px 12px;
@@ -110,7 +110,8 @@
                    "#ffffff","#111111","#9e9e9e","#c0c0c0","#d4af37",
                    "#b71c1c","#ff7043","#fff59d","#1b5e20","#00acc1",
                    "#0d47a1","#4a148c","#ec407a","#4e342e","#546e7a",
-                   "#ffcc80","#a5d6a7","#80deea","#ce93d8","#424242"];
+                   "#ffcc80","#a5d6a7","#80deea","#ce93d8","#424242",
+                   "#ff8a80","#ffd54f","#aed581","#4db6ac","#64b5f6","#7986cb"];
   const valid = (v) => /^#[0-9a-fA-F]{6}$/.test(v || "");
   const params = new URLSearchParams(location.search);
   const words = (params.get("text") || "Abc").split(/\s+/).filter(Boolean).slice(0, 12);
