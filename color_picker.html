@@ -16,9 +16,12 @@
              min-height: 130px; justify-content: center; overflow: hidden; }
   .botfont .word { font-family: "BotFont", cursive; font-weight: 400; }
   .word { font-family: "Lobster", "Brush Script MT", cursive, system-ui; font-weight: 700;
-          line-height: 1.1; white-space: nowrap; paint-order: stroke fill;
-          -webkit-text-stroke-color: var(--base); -webkit-text-stroke-width: var(--stroke);
+          line-height: 1.1; white-space: nowrap; paint-order: stroke fill; position: relative; isolation: isolate;
+          -webkit-text-stroke-color: var(--ink); -webkit-text-stroke-width: var(--wstroke, 0px);
           stroke-linejoin: round; color: var(--ink); cursor: default; }
+  .word::before { content: attr(data-t); position: absolute; left: 0; top: 0; z-index: -1; pointer-events: none;
+          color: var(--base); -webkit-text-stroke: var(--stroke, 0px) var(--base); paint-order: stroke fill;
+          stroke-linejoin: round; }
   .each .word { cursor: pointer; }
   .word.sel { outline: 2px dashed rgba(255,255,255,.95); outline-offset: 8px; border-radius: 4px; }
   .seg { display: flex; gap: 8px; margin-bottom: 10px; }
@@ -54,6 +57,7 @@
   .offset { background: var(--tg-theme-secondary-bg-color, #eee); border-radius: 10px; padding: 6px 12px;
             margin-bottom: 8px; display: flex; align-items: center; gap: 10px; font-size: 14px; }
   .offset input { flex: 1; min-width: 0; margin: 0; }
+  .offset + .offset { margin-top: -2px; }
   .offset b { min-width: 64px; text-align: right; font-size: 14px; }
   input[type=range] { width: 100%; }
   .bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 6px 14px 8px;
@@ -75,6 +79,11 @@
     <span>Зміщення фону</span>
     <input type="range" id="offset" min="0" max="4" step="0.1" value="2">
     <b id="offval">не обрано</b>
+  </div>
+  <div class="offset">
+    <span>Товщина шрифту</span>
+    <input type="range" id="weight" min="0" max="1.5" step="0.1" value="0">
+    <b id="wval">стандарт</b>
   </div>
 
   <label class="check" id="modes" hidden>
@@ -134,10 +143,11 @@
   // styles param: "ink-bg-offset" per word, "_" for words not configured yet
   const given = (params.get("styles") || "").split(",");
   const styles = words.map((_, i) => {
-    const [ink, bg, off] = (given[i] || "").split("-");
+    const [ink, bg, off, wt] = (given[i] || "").split("-");
+    const weight = isNaN(parseFloat(wt)) ? 0 : parseFloat(wt);
     return valid("#" + ink) && valid("#" + bg)
-      ? { text: "#" + ink, bg: "#" + bg, offset: isNaN(parseFloat(off)) ? 2 : parseFloat(off), offsetSet: true }
-      : { text: "#e53935", bg: "#ffffff", offset: 2, offsetSet: true };
+      ? { text: "#" + ink, bg: "#" + bg, offset: isNaN(parseFloat(off)) ? 2 : parseFloat(off), offsetSet: true, weight }
+      : { text: "#e53935", bg: "#ffffff", offset: 2, offsetSet: true, weight: 0 };
   });
   const state =  { target: "text", sel: words.map((_, i) => i) };
   const isAll = () => state.sel.length === words.length;
@@ -147,12 +157,14 @@
   const hueBar = document.getElementById("hue");
   const hex = document.getElementById("hex");
   const slider = document.getElementById("offset");
+  const wslider = document.getElementById("weight");
   const doneBtn = document.getElementById("done");
 
   const nodes = words.map((w, i) => {
     const el = document.createElement("div");
     el.className = "word";
     el.textContent = w;
+    el.dataset.t = w;
     el.addEventListener("click", () => {
       if (words.length < 2) return;
       state.sel = [i];
@@ -168,15 +180,17 @@
 
   function render() {
     const available = preview.clientWidth - 64;
-    const view = (i) => styles[i].text || styles[i].bg
-      ? { ink: styles[i].text || "#e8e8e8", bg: styles[i].bg || "transparent", off: styles[i].offset }
-      : { ink: "#e8e8e8", bg: "transparent", off: styles[i].offset };
-    nodes.forEach((n) => { n.style.fontSize = "100px"; n.style.setProperty("--stroke", "0px"); });
+    const view = (i) => ({
+      ink: styles[i].text || "#e8e8e8",
+      bg: styles[i].bg && styles[i].offset > 0 ? styles[i].bg : "transparent",
+      off: styles[i].offset, wt: styles[i].weight,
+    });
+    nodes.forEach((n) => { n.style.fontSize = "100px"; n.style.setProperty("--stroke", "0px"); n.style.setProperty("--wstroke", "0px"); });
     const widths = nodes.map((n) => n.getBoundingClientRect().width);
     const longest = Math.max(...widths);
     let size = 100;
     for (let k = 0; k < 3; k++) {
-      const need = Math.max(...nodes.map((_, i) => (widths[i] + 2 * (view(i).off / 100) * longest) * size / 100));
+      const need = Math.max(...nodes.map((_, i) => (widths[i] + 2 * ((view(i).off + view(i).wt) / 100) * longest) * size / 100));
       size = Math.min(size * available / need, 110);
     }
     const longestPx = longest * size / 100;
@@ -185,8 +199,9 @@
       n.style.fontSize = size + "px";
       n.style.setProperty("--ink", s.ink);
       n.style.setProperty("--base", s.bg);
-      // PIL stroke grows 'offset' on each side; CSS stroke is centred, so double it
-      n.style.setProperty("--stroke", (2 * s.off / 100 * longestPx) + "px");
+      // PIL stroke grows on each side; CSS stroke is centred, so double it
+      n.style.setProperty("--wstroke", (2 * s.wt / 100 * longestPx) + "px");
+      n.style.setProperty("--stroke", s.off > 0 ? (2 * (s.off + s.wt) / 100 * longestPx) + "px" : "0px");
       n.classList.toggle("sel", words.length > 1 && !isAll() && state.sel.includes(i));
     });
     preview.classList.toggle("each", words.length > 1);
@@ -216,6 +231,8 @@
     }
     slider.value = cur.offset;
     document.getElementById("offval").textContent = cur.offset > 0 ? fmt(cur.offset) : "без фону";
+    wslider.value = cur.weight;
+    document.getElementById("wval").textContent = cur.weight > 0 ? fmt(cur.weight) : "стандарт";
     document.getElementById("all-chk").checked = isAll();
 
     const missing = [];
@@ -276,6 +293,7 @@
     if (valid(v)) setColor(v);
   });
   slider.addEventListener("input", () => { patch({ offset: parseFloat(slider.value), offsetSet: true }); syncUi(); });
+  wslider.addEventListener("input", () => { patch({ weight: parseFloat(wslider.value) }); syncUi(); });
 
   if (words.length > 1) {
     document.getElementById("modes").hidden = false;
@@ -295,7 +313,7 @@
   doneBtn.addEventListener("click", () => {
     if (doneBtn.disabled) return;
     tg.sendData(JSON.stringify({ styles: styles.map((s) => ({
-      text_color: s.text, bg_color: s.bg || "#ffffff", offset: Math.round(s.offset * 10) / 10 })) }));
+      text_color: s.text, bg_color: s.bg || "#ffffff", offset: Math.round(s.offset * 10) / 10, weight: Math.round(s.weight * 10) / 10 })) }));
   });
   window.addEventListener("resize", render);
 
