@@ -27,6 +27,7 @@
   .seg button.on, .tab.on { border-color: var(--tg-theme-button-color, #2481cc); }
   .tabs { display: flex; gap: 8px; margin-bottom: 10px; }
   .tab { font-size: 15px; }
+  .tab:disabled, .sw:disabled { opacity: .35; }
   .tab .dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; vertical-align: -2px;
               margin-right: 6px; border: 1px solid rgba(0,0,0,.35);
               background: repeating-conic-gradient(#ccc 0 25%, #fff 0 50%) 0 0/8px 8px; }
@@ -59,7 +60,7 @@
 
   <div class="offset">
     <label><span>Зміщення фону</span><b id="offval">не обрано</b></label>
-    <input type="range" id="offset" min="1" max="4" step="0.1" value="2">
+    <input type="range" id="offset" min="0" max="4" step="0.1" value="2">
   </div>
 
   <div class="seg" id="modes" hidden>
@@ -97,7 +98,7 @@
   const styles = words.map((_, i) => {
     const [ink, bg, off] = (given[i] || "").split("-");
     return valid("#" + ink) && valid("#" + bg)
-      ? { text: "#" + ink, bg: "#" + bg, offset: parseFloat(off) || 2, offsetSet: true }
+      ? { text: "#" + ink, bg: "#" + bg, offset: isNaN(parseFloat(off)) ? 2 : parseFloat(off), offsetSet: true }
       : { text: "#e53935", bg: "#ffffff", offset: 2, offsetSet: true };
   });
   const same = (a, b) => a.text === b.text && a.bg === b.bg && a.offset === b.offset;
@@ -153,6 +154,10 @@
 
   function syncUi() {
     const cur = current();
+    // without an offset there is no backing, so its colour is not needed
+    const hasBase = cur.offset > 0;
+    if (!hasBase && state.target === "bg") state.target = "text";
+    document.getElementById("tab-bg").disabled = !hasBase;
     const color = state.target === "text" ? cur.text : cur.bg;
     if (color) { picker.value = color; hex.value = color.toUpperCase(); } else { hex.value = ""; }
     document.querySelectorAll(".sw").forEach((b) => b.classList.toggle("on", b.dataset.c === color));
@@ -163,7 +168,7 @@
       tab.querySelector(".ok").textContent = cur[t] ? "✓" : "";
     }
     slider.value = cur.offset;
-    document.getElementById("offval").textContent = cur.offsetSet ? fmt(cur.offset) : "не обрано";
+    document.getElementById("offval").textContent = cur.offset > 0 ? fmt(cur.offset) : "без фону";
     document.querySelectorAll("#modes button").forEach((b) => b.classList.toggle("on", b.dataset.m === state.mode));
     document.getElementById("hint").textContent = state.mode === "all"
       ? "Налаштування застосуються до всього напису."
@@ -173,7 +178,7 @@
     styles.forEach((s, i) => {
       const parts = [];
       if (!s.text) parts.push("колір надпису");
-      if (!s.bg) parts.push("колір фону");
+      if (!s.bg && s.offset > 0) parts.push("колір фону");
       if (!s.offsetSet) parts.push("зміщення");
       if (parts.length) missing.push(words.length > 1 ? "«" + words[i] + "»: " + parts.join(", ") : parts.join(", "));
     });
@@ -187,7 +192,7 @@
   }
   function setColor(c) {
     patch({ [state.target]: c.toLowerCase() });
-    if (state.target === "text" && !current().bg) state.target = "bg";
+    if (state.target === "text" && !current().bg && current().offset > 0) state.target = "bg";
     syncUi();
   }
 
@@ -223,7 +228,7 @@
   doneBtn.addEventListener("click", () => {
     if (doneBtn.disabled) return;
     tg.sendData(JSON.stringify({ styles: styles.map((s) => ({
-      text_color: s.text, bg_color: s.bg, offset: Math.round(s.offset * 10) / 10 })) }));
+      text_color: s.text, bg_color: s.bg || "#ffffff", offset: Math.round(s.offset * 10) / 10 })) }));
   });
   window.addEventListener("resize", render);
 
