@@ -2,68 +2,231 @@
 <html lang="uk">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>Вибір кольору</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Кольори надпису</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-  body { margin: 0; padding: 16px; font-family: system-ui, sans-serif;
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; padding-bottom: 92px;
          background: var(--tg-theme-bg-color, #fff); color: var(--tg-theme-text-color, #111); }
-  h1 { font-size: 18px; margin: 0 0 12px; }
-  #preview { display: flex; align-items: center; justify-content: center; height: 150px;
-             border-radius: 12px; background: #b7b2a8; margin-bottom: 16px; overflow: hidden; }
-  #sample { font-size: 64px; font-weight: 700; line-height: 1; padding: 0 20px;
-            -webkit-text-stroke: 14px var(--base); paint-order: stroke fill; }
-  .row { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
-  input[type=color] { width: 96px; height: 64px; border: none; padding: 0; background: none; }
-  input[type=text] { flex: 1; min-width: 0; font-size: 20px; padding: 10px; border-radius: 8px;
+  .wrap { padding: 12px 14px; max-width: 560px; margin: 0 auto; }
+  h1 { font-size: 17px; margin: 0 0 4px; }
+  .hint { font-size: 13px; opacity: .7; margin: 0 0 10px; min-height: 16px; }
+  #preview { background: #b7b2a8; border-radius: 12px; padding: 22px 10px; margin-bottom: 14px;
+             display: flex; flex-direction: column; align-items: center; gap: 12px;
+             min-height: 120px; justify-content: center; overflow: hidden; }
+  .word { font-family: "Lobster", "Brush Script MT", cursive, system-ui; font-weight: 700;
+          line-height: 1.1; white-space: nowrap; paint-order: stroke fill;
+          -webkit-text-stroke-color: var(--base); -webkit-text-stroke-width: var(--stroke);
+          stroke-linejoin: round; color: var(--ink); cursor: default; }
+  .each .word { cursor: pointer; }
+  .word.sel { outline: 2px dashed rgba(255,255,255,.95); outline-offset: 8px; border-radius: 4px; }
+  .seg { display: flex; gap: 8px; margin-bottom: 10px; }
+  .seg button, .tab { flex: 1; padding: 10px 6px; border-radius: 10px; border: 2px solid transparent; font-size: 14px;
+         background: var(--tg-theme-secondary-bg-color, #eee); color: inherit; }
+  .seg button.on, .tab.on { border-color: var(--tg-theme-button-color, #2481cc); }
+  .tabs { display: flex; gap: 8px; margin-bottom: 10px; }
+  .tab { font-size: 15px; }
+  .tab .dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; vertical-align: -2px;
+              margin-right: 6px; border: 1px solid rgba(0,0,0,.35);
+              background: repeating-conic-gradient(#ccc 0 25%, #fff 0 50%) 0 0/8px 8px; }
+  .tab .ok { color: #2e9e4f; margin-left: 4px; }
+  .swatches { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 10px; }
+  .sw { aspect-ratio: 1; border-radius: 10px; border: 2px solid rgba(0,0,0,.2); padding: 0; }
+  .sw.on { border-color: var(--tg-theme-button-color, #2481cc); box-shadow: 0 0 0 2px var(--tg-theme-button-color, #2481cc); }
+  .custom { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; }
+  input[type=color] { width: 64px; height: 44px; border: none; padding: 0; background: none; }
+  input[type=text] { flex: 1; min-width: 0; font-size: 18px; padding: 9px 10px; border-radius: 8px;
                      border: 1px solid #999; text-transform: uppercase; }
-  button { width: 100%; padding: 14px; font-size: 18px; border: none; border-radius: 10px;
-           background: var(--tg-theme-button-color, #2481cc);
-           color: var(--tg-theme-button-text-color, #fff); }
+  .offset { background: var(--tg-theme-secondary-bg-color, #eee); border-radius: 12px; padding: 12px 14px; }
+  .offset label { display: flex; justify-content: space-between; font-size: 15px; margin-bottom: 8px; }
+  input[type=range] { width: 100%; }
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px 12px;
+         background: var(--tg-theme-bg-color, #fff); border-top: 1px solid rgba(0,0,0,.1); }
+  #done { display: block; width: 100%; max-width: 560px; margin: 0 auto; padding: 14px; font-size: 17px;
+          border: none; border-radius: 10px; background: var(--tg-theme-button-color, #2481cc);
+          color: var(--tg-theme-button-text-color, #fff); }
+  #done:disabled { opacity: .45; }
+  #missing { text-align: center; font-size: 12px; opacity: .75; margin-bottom: 6px; min-height: 14px; }
 </style>
 </head>
 <body>
-<h1 id="title">Оберіть колір</h1>
-<div id="preview"><span id="sample">Abc</span></div>
-<div class="row">
-  <input type="color" id="picker" value="#ff69b4">
-  <input type="text" id="hex" maxlength="7" value="#FF69B4">
+<div class="wrap">
+  <h1>Кольори надпису</h1>
+  <p class="hint" id="hint"></p>
+  <div id="preview"></div>
+
+  <div class="seg" id="modes" hidden>
+    <button data-m="all">Однакові для всіх слів</button>
+    <button data-m="each">Кожне слово окремо</button>
+  </div>
+  <div class="tabs">
+    <button class="tab on" id="tab-text" data-t="text"><span class="dot"></span>Колір надпису<span class="ok"></span></button>
+    <button class="tab" id="tab-bg" data-t="bg"><span class="dot"></span>Колір фону<span class="ok"></span></button>
+  </div>
+  <div class="swatches" id="swatches"></div>
+  <div class="custom">
+    <input type="color" id="picker" value="#1e88e5">
+    <input type="text" id="hex" maxlength="7" placeholder="#RRGGBB">
+  </div>
+  <div class="offset">
+    <label><span>Зміщення фону</span><b id="offval">не обрано</b></label>
+    <input type="range" id="offset" min="1" max="4" step="0.1" value="2">
+  </div>
 </div>
-<button id="done">Готово</button>
+<div class="bar">
+  <div id="missing"></div>
+  <button id="done" disabled>Передати далі</button>
+</div>
 <script>
   const tg = window.Telegram.WebApp;
   tg.ready();
   tg.expand();
+
+  const PALETTE = ["#e53935","#fb8c00","#fdd835","#43a047","#1e88e5",
+                   "#9cc9ee","#8e24aa","#f4a6b7","#d81b78","#795548",
+                   "#ffffff","#111111","#9e9e9e","#c0c0c0","#d4af37"];
+  const valid = (v) => /^#[0-9a-fA-F]{6}$/.test(v || "");
   const params = new URLSearchParams(location.search);
-  const target = params.get("target") === "bg" ? "bg" : "text";
-  const valid = (value) => /^#[0-9a-fA-F]{6}$/.test(value);
-  const fromParam = (name, fallback) => valid("#" + (params.get(name) || "")) ? "#" + params.get(name) : fallback;
-  const textColor = fromParam("text", "#1e88e5");
-  const baseColor = fromParam("bg", "#ffffff");
-  const sample = document.getElementById("sample");
+  const words = (params.get("text") || "Abc").split(/\s+/).filter(Boolean).slice(0, 12);
+
+  // styles param: "ink-bg-offset" per word, "_" for words not configured yet
+  const given = (params.get("styles") || "").split(",");
+  const styles = words.map((_, i) => {
+    const [ink, bg, off] = (given[i] || "").split("-");
+    return valid("#" + ink) && valid("#" + bg)
+      ? { text: "#" + ink, bg: "#" + bg, offset: parseFloat(off) || 2, offsetSet: true }
+      : { text: null, bg: null, offset: 2, offsetSet: false };
+  });
+  const same = (a, b) => a.text === b.text && a.bg === b.bg && a.offset === b.offset;
+  const state = { mode: words.length > 1 && !styles.every((s) => same(s, styles[0])) ? "each" : "all",
+                  target: "text", sel: 0 };
+
+  const preview = document.getElementById("preview");
   const picker = document.getElementById("picker");
   const hex = document.getElementById("hex");
-  const initial = target === "bg" ? baseColor : textColor;
+  const slider = document.getElementById("offset");
+  const doneBtn = document.getElementById("done");
 
-  document.getElementById("title").textContent =
-    (target === "bg" ? "Колір фону" : "Колір надпису") + (params.get("word") ? " — «" + params.get("word") + "»" : "");
-  sample.textContent = (params.get("word") || "Abc").slice(0, 8);
+  const nodes = words.map((w, i) => {
+    const el = document.createElement("div");
+    el.className = "word";
+    el.textContent = w;
+    el.addEventListener("click", () => {
+      if (state.mode === "each") { state.sel = i; syncUi(); }
+    });
+    preview.appendChild(el);
+    return el;
+  });
 
-  function apply(color) {
-    picker.value = color;
-    hex.value = color.toUpperCase();
-    sample.style.color = target === "text" ? color : textColor;
-    sample.style.setProperty("--base", target === "bg" ? color : baseColor);
+  const targets = () => state.mode === "all" ? words.map((_, i) => i) : [state.sel];
+  const current = () => styles[targets()[0]];
+  const fmt = (n) => n.toFixed(1).replace(".", ",") + "%";
+
+  function render() {
+    const available = preview.clientWidth - 64;
+    const view = (i) => styles[i].text || styles[i].bg
+      ? { ink: styles[i].text || "#e8e8e8", bg: styles[i].bg || "transparent", off: styles[i].offset }
+      : { ink: "#e8e8e8", bg: "transparent", off: styles[i].offset };
+    nodes.forEach((n) => { n.style.fontSize = "100px"; n.style.setProperty("--stroke", "0px"); });
+    const widths = nodes.map((n) => n.getBoundingClientRect().width);
+    const longest = Math.max(...widths);
+    let size = 100;
+    for (let k = 0; k < 3; k++) {
+      const need = Math.max(...nodes.map((_, i) => (widths[i] + 2 * (view(i).off / 100) * longest) * size / 100));
+      size = Math.min(size * available / need, 110);
+    }
+    const longestPx = longest * size / 100;
+    nodes.forEach((n, i) => {
+      const s = view(i);
+      n.style.fontSize = size + "px";
+      n.style.setProperty("--ink", s.ink);
+      n.style.setProperty("--base", s.bg);
+      // PIL stroke grows 'offset' on each side; CSS stroke is centred, so double it
+      n.style.setProperty("--stroke", (2 * s.off / 100 * longestPx) + "px");
+      n.classList.toggle("sel", state.mode === "each" && state.sel === i);
+    });
+    preview.classList.toggle("each", state.mode === "each");
   }
-  picker.addEventListener("input", () => apply(picker.value));
+
+  function syncUi() {
+    const cur = current();
+    const color = state.target === "text" ? cur.text : cur.bg;
+    if (color) { picker.value = color; hex.value = color.toUpperCase(); } else { hex.value = ""; }
+    document.querySelectorAll(".sw").forEach((b) => b.classList.toggle("on", b.dataset.c === color));
+    document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("on", b.dataset.t === state.target));
+    for (const t of ["text", "bg"]) {
+      const tab = document.getElementById("tab-" + t);
+      tab.querySelector(".dot").style.background = cur[t] || "";
+      tab.querySelector(".ok").textContent = cur[t] ? "✓" : "";
+    }
+    slider.value = cur.offset;
+    document.getElementById("offval").textContent = cur.offsetSet ? fmt(cur.offset) : "не обрано";
+    document.querySelectorAll("#modes button").forEach((b) => b.classList.toggle("on", b.dataset.m === state.mode));
+    document.getElementById("hint").textContent = state.mode === "all"
+      ? "Налаштування застосуються до всього напису."
+      : "Натисніть слово в надписі та налаштуйте його: «" + words[state.sel] + "».";
+
+    const missing = [];
+    styles.forEach((s, i) => {
+      const parts = [];
+      if (!s.text) parts.push("колір надпису");
+      if (!s.bg) parts.push("колір фону");
+      if (!s.offsetSet) parts.push("зміщення");
+      if (parts.length) missing.push(words.length > 1 ? "«" + words[i] + "»: " + parts.join(", ") : parts.join(", "));
+    });
+    doneBtn.disabled = missing.length > 0;
+    document.getElementById("missing").textContent = missing.length ? "Ще оберіть — " + missing.join("; ") : "";
+    render();
+  }
+
+  function patch(values) {
+    targets().forEach((i) => Object.assign(styles[i], values));
+  }
+  function setColor(c) {
+    patch({ [state.target]: c.toLowerCase() });
+    if (state.target === "text" && !current().bg) state.target = "bg";
+    syncUi();
+  }
+
+  const sw = document.getElementById("swatches");
+  PALETTE.forEach((c) => {
+    const b = document.createElement("button");
+    b.className = "sw"; b.dataset.c = c; b.style.background = c;
+    b.addEventListener("click", () => setColor(c));
+    sw.appendChild(b);
+  });
+  document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => { state.target = b.dataset.t; syncUi(); }));
+  picker.addEventListener("input", () => setColor(picker.value));
   hex.addEventListener("input", () => {
-    const value = hex.value.startsWith("#") ? hex.value : "#" + hex.value;
-    if (valid(value)) apply(value.toLowerCase());
+    const v = hex.value.startsWith("#") ? hex.value : "#" + hex.value;
+    if (valid(v)) setColor(v);
   });
-  document.getElementById("done").addEventListener("click", () => {
-    if (valid(picker.value)) tg.sendData(picker.value);
+  slider.addEventListener("input", () => { patch({ offset: parseFloat(slider.value), offsetSet: true }); syncUi(); });
+
+  if (words.length > 1) {
+    document.getElementById("modes").hidden = false;
+    document.querySelectorAll("#modes button").forEach((b) => b.addEventListener("click", () => {
+      if (b.dataset.m === state.mode) return;
+      if (b.dataset.m === "all") {
+        // everything takes the style of the selected word
+        const base = { ...styles[state.sel] };
+        styles.forEach((s) => Object.assign(s, base));
+      }
+      state.mode = b.dataset.m;
+      syncUi();
+    }));
+  }
+
+  doneBtn.addEventListener("click", () => {
+    if (doneBtn.disabled) return;
+    tg.sendData(JSON.stringify({ styles: styles.map((s) => ({
+      text_color: s.text, bg_color: s.bg, offset: Math.round(s.offset * 10) / 10 })) }));
   });
-  apply(initial);
+  window.addEventListener("resize", render);
+
+  syncUi();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(render);
 </script>
 </body>
 </html>
