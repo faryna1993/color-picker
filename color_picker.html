@@ -98,7 +98,7 @@
     const [ink, bg, off] = (given[i] || "").split("-");
     return valid("#" + ink) && valid("#" + bg)
       ? { text: "#" + ink, bg: "#" + bg, offset: parseFloat(off) || 2, offsetSet: true }
-      : { text: null, bg: null, offset: 2, offsetSet: false };
+      : { text: "#e53935", bg: "#ffffff", offset: 2, offsetSet: true };
   });
   const same = (a, b) => a.text === b.text && a.bg === b.bg && a.offset === b.offset;
   const state = { mode: words.length > 1 && !styles.every((s) => same(s, styles[0])) ? "each" : "all",
