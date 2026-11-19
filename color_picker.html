@@ -25,6 +25,8 @@
   .seg button, .tab { flex: 1; padding: 10px 6px; border-radius: 10px; border: 2px solid transparent; font-size: 14px;
          background: var(--tg-theme-secondary-bg-color, #eee); color: inherit; }
   .seg button.on, .tab.on { border-color: var(--tg-theme-button-color, #2481cc); }
+  .check { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 15px; cursor: pointer; }
+  .check input { width: 22px; height: 22px; margin: 0; accent-color: var(--tg-theme-button-color, #2481cc); }
   .tabs { display: flex; gap: 8px; margin-bottom: 10px; }
   .tab { font-size: 14px; padding: 8px 6px; }
   .tab:disabled, .sw:disabled { opacity: .35; }
@@ -73,9 +75,10 @@
     <input type="range" id="offset" min="0" max="4" step="0.1" value="2">
   </div>
 
-  <div class="seg" id="modes" hidden>
-    <button id="all-btn">✓ Усі слова разом</button>
-  </div>
+  <label class="check" id="modes" hidden>
+    <input type="checkbox" id="all-chk" checked>
+    <span>Усі слова разом</span>
+  </label>
   <div class="tabs">
     <button class="tab on" id="tab-text" data-t="text"><span class="dot"></span>Колір надпису<span class="ok"></span></button>
     <button class="tab" id="tab-bg" data-t="bg"><span class="dot"></span>Колір фону<span class="ok"></span></button>
@@ -132,9 +135,7 @@
     el.textContent = w;
     el.addEventListener("click", () => {
       if (words.length < 2) return;
-      // tap a word to edit only it; tap it again to go back to editing all words
-      const alone = state.sel.length === 1 && state.sel[0] === i;
-      state.sel = alone ? words.map((_, k) => k) : [i];
+      state.sel = [i];
       syncUi();
     });
     preview.appendChild(el);
@@ -195,12 +196,12 @@
     }
     slider.value = cur.offset;
     document.getElementById("offval").textContent = cur.offset > 0 ? fmt(cur.offset) : "без фону";
-    document.getElementById("all-btn").classList.toggle("on", isAll());
+    document.getElementById("all-chk").checked = isAll();
     document.getElementById("hint").textContent = words.length < 2
       ? ""
       : isAll()
-        ? "Зміни застосовуються до всього напису. Торкніться слова, щоб змінити лише його."
-        : "Змінюєте лише «" + words[state.sel[0]] + "». Торкніться його ще раз або «Усі слова разом», щоб повернутись.";
+        ? "Зміни застосовуються до всього напису. Зніміть галочку або торкніться слова, щоб змінити лише його."
+        : "Змінюєте лише «" + words[state.sel[0]] + "». Торкніться іншого слова, щоб змінити його.";
 
     const missing = [];
     styles.forEach((s, i) => {
@@ -263,8 +264,15 @@
 
   if (words.length > 1) {
     document.getElementById("modes").hidden = false;
-    document.getElementById("all-btn").addEventListener("click", () => {
-      state.sel = words.map((_, i) => i);
+    document.getElementById("all-chk").addEventListener("change", (e) => {
+      if (e.target.checked) {
+        // all words take the style of the one being edited
+        const base = { ...styles[state.sel[0]] };
+        styles.forEach((s) => Object.assign(s, base));
+        state.sel = words.map((_, i) => i);
+      } else {
+        state.sel = [0];
+      }
       syncUi();
     });
   }
