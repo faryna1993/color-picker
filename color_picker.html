@@ -14,6 +14,7 @@
   #preview { background: #b7b2a8; border-radius: 12px; padding: 26px 10px; margin-bottom: 8px;
              display: flex; flex-direction: column; align-items: center; gap: 10px;
              min-height: 130px; justify-content: center; overflow: hidden; }
+  .botfont .word { font-family: "BotFont", cursive; font-weight: 400; }
   .word { font-family: "Lobster", "Brush Script MT", cursive, system-ui; font-weight: 700;
           line-height: 1.1; white-space: nowrap; paint-order: stroke fill;
           -webkit-text-stroke-color: var(--base); -webkit-text-stroke-width: var(--stroke);
@@ -115,6 +116,20 @@
   const valid = (v) => /^#[0-9a-fA-F]{6}$/.test(v || "");
   const params = new URLSearchParams(location.search);
   const words = (params.get("text") || "Abc").split(/\s+/).filter(Boolean).slice(0, 12);
+  const fontId = (params.get("font") || "").replace(/[^a-z0-9-]/gi, "");
+  if (fontId) {
+    (async () => {
+      for (const ext of ["ttf", "otf"]) {
+        try {
+          const face = new FontFace("BotFont", `url(fonts/${fontId}.${ext})`);
+          document.fonts.add(await face.load());
+          document.querySelectorAll(".word").forEach((w) => { w.style.fontFamily = "BotFont"; w.style.fontWeight = "400"; });
+          document.documentElement.classList.add("botfont");
+          return;
+        } catch (e) { /* try next extension */ }
+      }
+    })();
+  }
 
   // styles param: "ink-bg-offset" per word, "_" for words not configured yet
   const given = (params.get("styles") || "").split(",");
