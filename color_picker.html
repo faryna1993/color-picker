@@ -64,8 +64,7 @@
   </div>
 
   <div class="seg" id="modes" hidden>
-    <button data-m="all">Однакові для всіх слів</button>
-    <button data-m="each">Кожне слово окремо</button>
+    <button id="all-btn">✓ Усі слова разом</button>
   </div>
   <div class="tabs">
     <button class="tab on" id="tab-text" data-t="text"><span class="dot"></span>Колір надпису<span class="ok"></span></button>
@@ -101,9 +100,8 @@
       ? { text: "#" + ink, bg: "#" + bg, offset: isNaN(parseFloat(off)) ? 2 : parseFloat(off), offsetSet: true }
       : { text: "#e53935", bg: "#ffffff", offset: 2, offsetSet: true };
   });
-  const same = (a, b) => a.text === b.text && a.bg === b.bg && a.offset === b.offset;
-  const state = { mode: words.length > 1 && !styles.every((s) => same(s, styles[0])) ? "each" : "all",
-                  target: "text", sel: 0 };
+  const state =  { target: "text", sel: words.map((_, i) => i) };
+  const isAll = () => state.sel.length === words.length;
 
   const preview = document.getElementById("preview");
   const picker = document.getElementById("picker");
@@ -116,13 +114,17 @@
     el.className = "word";
     el.textContent = w;
     el.addEventListener("click", () => {
-      if (state.mode === "each") { state.sel = i; syncUi(); }
+      if (words.length < 2) return;
+      // tap a word to edit only it; tap it again to go back to editing all words
+      const alone = state.sel.length === 1 && state.sel[0] === i;
+      state.sel = alone ? words.map((_, k) => k) : [i];
+      syncUi();
     });
     preview.appendChild(el);
     return el;
   });
 
-  const targets = () => state.mode === "all" ? words.map((_, i) => i) : [state.sel];
+  const targets = () => state.sel;
   const current = () => styles[targets()[0]];
   const fmt = (n) => n.toFixed(1).replace(".", ",") + "%";
 
@@ -147,9 +149,9 @@
       n.style.setProperty("--base", s.bg);
       // PIL stroke grows 'offset' on each side; CSS stroke is centred, so double it
       n.style.setProperty("--stroke", (2 * s.off / 100 * longestPx) + "px");
-      n.classList.toggle("sel", state.mode === "each" && state.sel === i);
+      n.classList.toggle("sel", words.length > 1 && !isAll() && state.sel.includes(i));
     });
-    preview.classList.toggle("each", state.mode === "each");
+    preview.classList.toggle("each", words.length > 1);
   }
 
   function syncUi() {
@@ -169,10 +171,12 @@
     }
     slider.value = cur.offset;
     document.getElementById("offval").textContent = cur.offset > 0 ? fmt(cur.offset) : "без фону";
-    document.querySelectorAll("#modes button").forEach((b) => b.classList.toggle("on", b.dataset.m === state.mode));
-    document.getElementById("hint").textContent = state.mode === "all"
-      ? "Налаштування застосуються до всього напису."
-      : "Натисніть слово в надписі та налаштуйте його: «" + words[state.sel] + "».";
+    document.getElementById("all-btn").classList.toggle("on", isAll());
+    document.getElementById("hint").textContent = words.length < 2
+      ? ""
+      : isAll()
+        ? "Зміни застосовуються до всього напису. Торкніться слова, щоб змінити лише його."
+        : "Змінюєте лише «" + words[state.sel[0]] + "». Торкніться його ще раз або «Усі слова разом», щоб повернутись.";
 
     const missing = [];
     styles.forEach((s, i) => {
@@ -213,16 +217,10 @@
 
   if (words.length > 1) {
     document.getElementById("modes").hidden = false;
-    document.querySelectorAll("#modes button").forEach((b) => b.addEventListener("click", () => {
-      if (b.dataset.m === state.mode) return;
-      if (b.dataset.m === "all") {
-        // everything takes the style of the selected word
-        const base = { ...styles[state.sel] };
-        styles.forEach((s) => Object.assign(s, base));
-      }
-      state.mode = b.dataset.m;
+    document.getElementById("all-btn").addEventListener("click", () => {
+      state.sel = words.map((_, i) => i);
       syncUi();
-    }));
+    });
   }
 
   doneBtn.addEventListener("click", () => {
