@@ -255,8 +255,8 @@
     return result;
   }
 
-  // Vector path, same maths as dxf_generator.py: glyph outlines (even-odd) are offset
-  // with round joins (the equivalent of shapely buffer), so the preview matches the DXF.
+  // Vector path: glyph outlines (non-zero fill, so overlapping letters merge) are offset
+  // with round joins, the equivalent of the shapely buffer used by dxf_generator.py.
   const CLIP_SCALE = 16;
 
   function glyphPolygons(commands, dx, dy, k) {
@@ -285,11 +285,11 @@
     return paths.filter((p) => p.length >= 3);
   }
 
-  function unionEvenOdd(paths) {
+  function unionNonZero(paths) {
     const clipper = new ClipperLib.Clipper();
     clipper.AddPaths(paths, ClipperLib.PolyType.ptSubject, true);
     const solution = new ClipperLib.Paths();
-    clipper.Execute(ClipperLib.ClipType.ctUnion, solution, ClipperLib.PolyFillType.pftEvenOdd, ClipperLib.PolyFillType.pftEvenOdd);
+    clipper.Execute(ClipperLib.ClipType.ctUnion, solution, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
     return solution;
   }
 
@@ -351,7 +351,7 @@
       canvas.height = Math.ceil(cssHeight * dpr);
       const ctx = canvas.getContext("2d");
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      const text = unionEvenOdd(glyphPolygons(path.commands, pad - box.x1, pad - box.y1, dpr));
+      const text = unionNonZero(glyphPolygons(path.commands, pad - box.x1, pad - box.y1, dpr));
       if (s.bg) fillPaths(ctx, roundOffset(text, baseRadius, dpr), s.bg);
       fillPaths(ctx, weightRadius > 0 ? roundOffset(text, weightRadius, dpr) : text, s.ink);
       n.classList.toggle("sel", words.length > 1 && !isAll() && state.sel.includes(i));
