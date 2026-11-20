@@ -65,7 +65,10 @@
       ? "&#1050;&#1088;&#1072;&#1087;&#1082;&#1080; &#1090;&#1072; &#1110;&#1085;&#1096;&#1110; &#1086;&#1082;&#1088;&#1077;&#1084;&#1110; &#1095;&#1072;&#1089;&#1090;&#1080;&#1085;&#1080; &#1073;&#1091;&#1076;&#1091;&#1090;&#1100; &#1079;&#8217;&#1108;&#1076;&#1085;&#1072;&#1085;&#1110; &#1090;&#1086;&#1085;&#1082;&#1080;&#1084;&#1080; &#1087;&#1077;&#1088;&#1077;&#1093;&#1086;&#1076;&#1072;&#1084;&#1080;."
       : "&#1054;&#1082;&#1088;&#1077;&#1084;&#1110; &#1095;&#1072;&#1089;&#1090;&#1080;&#1085;&#1080; &#1079;&#1072;&#1083;&#1080;&#1096;&#1072;&#1090;&#1100;&#1089;&#1103; &#1085;&#1077;&#1079;&#8217;&#1108;&#1076;&#1085;&#1072;&#1085;&#1080;&#1084;&#1080;&#1084;&#1080;.";
   }
-  connectAll.addEventListener("change", syncConnectStatus);
+  connectAll.addEventListener("change", () => {
+    syncConnectStatus();
+    render();
+  });
   syncConnectStatus();
   const fontId = (params.get("font") || "").replace(/[^a-z0-9-]/gi, "");
   const parsed = parseFloat(params.get("weight"));
@@ -137,6 +140,57 @@
     ctx.fill(region, "nonzero");
   }
 
+  function connectRasterComponents(ctx, canvas) {
+    if (!connectAll.checked) return;
+    const width = canvas.width, height = canvas.height;
+    const pixels = ctx.getImageData(0, 0, width, height).data;
+    const labels = new Int32Array(width * height);
+    const components = [];
+    const neighbours = [-1, 1, -width, width, -width - 1, -width + 1, width - 1, width + 1];
+    for (let start = 0; start < width * height; start++) {
+      if (labels[start] || pixels[start * 4 + 3] === 0) continue;
+      const id = components.length + 1;
+      const points = [start];
+      labels[start] = id;
+      for (let cursor = 0; cursor < points.length; cursor++) {
+        const pos = points[cursor], x = pos % width, y = (pos / width) | 0;
+        for (const delta of neighbours) {
+          const next = pos + delta;
+          if (next < 0 || next >= width * height || labels[next] || pixels[next * 4 + 3] === 0) continue;
+          const nx = next % width, ny = (next / width) | 0;
+          if (Math.abs(nx - x) > 1 || Math.abs(ny - y) > 1) continue;
+          labels[next] = id;
+          points.push(next);
+        }
+      }
+      components.push(points);
+    }
+    if (components.length < 2) return;
+    components.sort((a, b) => b.length - a.length);
+    const main = components[0];
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.strokeStyle = "#26352e";
+    ctx.lineWidth = Math.max(2, (window.devicePixelRatio || 1) * 1.5);
+    ctx.lineCap = "round";
+    for (const part of components.slice(1)) {
+      let bestDistance = Infinity, bestA = 0, bestB = 0;
+      for (const a of part) {
+        const ax = a % width, ay = (a / width) | 0;
+        for (const b of main) {
+          const dx = ax - (b % width), dy = ay - ((b / width) | 0);
+          const distance = dx * dx + dy * dy;
+          if (distance < bestDistance) { bestDistance = distance; bestA = a; bestB = b; }
+        }
+      }
+      ctx.beginPath();
+      ctx.moveTo(bestA % width, (bestA / width) | 0);
+      ctx.lineTo(bestB % width, (bestB / width) | 0);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   let otFont = null;
   if (fontId && window.opentype) {
     (async () => {
@@ -185,6 +239,7 @@
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       const text = unionNonZero(glyphPolygons(path.commands, pad - box.x1, pad - box.y1, dpr));
       fillPaths(ctx, radius > 0 ? roundOffset(text, radius, dpr) : text, "#26352e");
+      connectRasterComponents(ctx, canvas);
     });
   }
 
@@ -214,6 +269,7 @@
       const y = pad + size * 0.88;
       if (radius > 0) ctx.strokeText(words[i], pad, y);
       ctx.fillText(words[i], pad, y);
+      connectRasterComponents(ctx, canvas);
     });
   }
 
