@@ -167,13 +167,21 @@
     }
     if (components.length < 2) return;
     components.sort((a, b) => b.length - a.length);
-    const main = components[0];
+    const boundary = (points) => points.filter((pos) => {
+      const x = pos % width, y = (pos / width) | 0;
+      return neighbours.some((delta) => {
+        const next = pos + delta;
+        return next < 0 || next >= width * height || labels[next] !== labels[pos]
+          || Math.abs((next % width) - x) > 1 || Math.abs(((next / width) | 0) - y) > 1;
+      });
+    });
+    const main = boundary(components[0]);
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.strokeStyle = "#26352e";
     ctx.lineWidth = Math.max(2, (window.devicePixelRatio || 1) * 1.5);
     ctx.lineCap = "round";
-    for (const part of components.slice(1)) {
+    for (const part of components.slice(1).map(boundary)) {
       let bestDistance = Infinity, bestA = 0, bestB = 0;
       for (const a of part) {
         const ax = a % width, ay = (a / width) | 0;
