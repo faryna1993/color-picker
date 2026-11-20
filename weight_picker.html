@@ -42,7 +42,7 @@
     <b id="wval">&#1089;&#1090;&#1072;&#1085;&#1076;&#1072;&#1088;&#1090;</b>
   </div>
   <label class="option">
-    <input type="checkbox" id="connectAll" checked>
+    <input type="checkbox" id="connectAll">
     <span>&#1047;&#8217;&#1108;&#1076;&#1085;&#1072;&#1090;&#1080; &#1091;&#1089;&#1110; &#1077;&#1083;&#1077;&#1084;&#1077;&#1085;&#1090;&#1080; &#1088;&#1072;&#1079;&#1086;&#1084;</span>
   </label>
   <div id="connectStatus" aria-live="polite"></div>
@@ -58,7 +58,7 @@
   const params = new URLSearchParams(location.search);
   const words = (params.get("text") || "Abc").split(/\s+/).filter(Boolean).slice(0, 12);
   const connectAll = document.getElementById("connectAll");
-  connectAll.checked = params.get("connect_all") !== "false";
+  connectAll.checked = params.get("connect_all") === "true";
   const connectStatus = document.getElementById("connectStatus");
   function syncConnectStatus() {
     connectStatus.innerHTML = connectAll.checked
