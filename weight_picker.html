@@ -25,6 +25,7 @@
             margin-bottom: 8px; display: flex; align-items: center; gap: 10px; font-size: 14px; }
   .option input { width: 20px; height: 20px; margin: 0; accent-color: var(--tg-theme-button-color, #2481cc); }
   #connectStatus { margin: -2px 4px 8px; font-size: 12px; opacity: .75; }
+  #connectHint { margin: -2px 4px 8px; font-size: 11px; opacity: .75; }
   .bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 6px 14px 8px;
          background: var(--tg-theme-bg-color, #fff); border-top: 1px solid rgba(0,0,0,.1); }
   #done { display: block; width: 100%; max-width: 560px; margin: 0 auto; padding: 9px; font-size: 16px;
@@ -46,6 +47,7 @@
     <span>&#1047;&#8217;&#1108;&#1076;&#1085;&#1072;&#1090;&#1080; &#1091;&#1089;&#1110; &#1077;&#1083;&#1077;&#1084;&#1077;&#1085;&#1090;&#1080; &#1088;&#1072;&#1079;&#1086;&#1084;</span>
   </label>
   <div id="connectStatus" aria-live="polite"></div>
+  <div id="connectHint">&#1063;&#1077;&#1088;&#1074;&#1086;&#1085;&#1080;&#1084; &#1087;&#1086;&#1079;&#1085;&#1072;&#1095;&#1077;&#1085;&#1086; &#1077;&#1083;&#1077;&#1084;&#1077;&#1085;&#1090;&#1080;, &#1103;&#1082;&#1110; &#1084;&#1080; &#1079;&#8217;&#1108;&#1076;&#1085;&#1072;&#1108;&#1084;&#1086; &#1074;&#1088;&#1091;&#1095;&#1085;&#1091;, &#1097;&#1086;&#1073;&#1080; &#1085;&#1072;&#1087;&#1080;&#1089; &#1074;&#1080;&#1075;&#1083;&#1103;&#1076;&#1072;&#1074; &#1094;&#1110;&#1083;&#1110;&#1089;&#1085;&#1080;&#1084;.</div>
 </div>
 <div class="bar">
   <button id="done">&#1055;&#1077;&#1088;&#1077;&#1076;&#1072;&#1090;&#1080; &#1076;&#1072;&#1083;&#1110;</button>
@@ -56,21 +58,22 @@
   tg.expand();
 
   const params = new URLSearchParams(location.search);
-  const words = (params.get("text") || "Abc").split(/\s+/).filter(Boolean).slice(0, 12);
+  const words = (params.get("text") || "Application started").split(/\s+/).filter(Boolean).slice(0, 12);
   const connectAll = document.getElementById("connectAll");
   connectAll.checked = params.get("connect_all") === "true";
   const connectStatus = document.getElementById("connectStatus");
+  const connectHint = document.getElementById("connectHint");
   function syncConnectStatus() {
     connectStatus.innerHTML = connectAll.checked
       ? "&#1050;&#1088;&#1072;&#1087;&#1082;&#1080; &#1090;&#1072; &#1110;&#1085;&#1096;&#1110; &#1086;&#1082;&#1088;&#1077;&#1084;&#1110; &#1095;&#1072;&#1089;&#1090;&#1080;&#1085;&#1080; &#1073;&#1091;&#1076;&#1091;&#1090;&#1100; &#1079;&#8217;&#1108;&#1076;&#1085;&#1072;&#1085;&#1110; &#1090;&#1086;&#1085;&#1082;&#1080;&#1084;&#1080; &#1087;&#1077;&#1088;&#1077;&#1093;&#1086;&#1076;&#1072;&#1084;&#1080;."
-      : "&#1054;&#1082;&#1088;&#1077;&#1084;&#1110; &#1095;&#1072;&#1089;&#1090;&#1080;&#1085;&#1080; &#1079;&#1072;&#1083;&#1080;&#1096;&#1072;&#1090;&#1100;&#1089;&#1103; &#1085;&#1077;&#1079;&#8217;&#1108;&#1076;&#1085;&#1072;&#1085;&#1080;&#1084;&#1080;&#1084;&#1080;.";
+      : "&#1054;&#1082;&#1088;&#1077;&#1084;&#1110; &#1077;&#1083;&#1077;&#1084;&#1077;&#1085;&#1090;&#1080; &#1079;&#1072;&#1083;&#1080;&#1096;&#1072;&#1090;&#1100;&#1089;&#1103; &#1085;&#1077;&#1079;&#8217;&#1108;&#1076;&#1085;&#1072;&#1085;&#1080;&#1084;&#1080;.";
   }
   connectAll.addEventListener("change", () => {
     syncConnectStatus();
     render();
   });
   syncConnectStatus();
-  const fontId = (params.get("font") || "").replace(/[^a-z0-9-]/gi, "");
+  const fontId = (params.get("font") || "inscription-1").replace(/[^a-z0-9-]/gi, "");
   const parsed = parseFloat(params.get("weight"));
   let weight = isNaN(parsed) ? 0 : Math.min(1.5, Math.max(0, parsed));
 
@@ -141,7 +144,6 @@
   }
 
   function connectRasterComponents(ctx, canvas) {
-    if (!connectAll.checked) return;
     const width = canvas.width, height = canvas.height;
     const pixels = ctx.getImageData(0, 0, width, height).data;
     const labels = new Int32Array(width * height);
@@ -165,7 +167,7 @@
       }
       components.push(points);
     }
-    if (components.length < 2) return;
+    if (components.length < 2) return false;
     components.sort((a, b) => b.length - a.length);
     const getBounds = (points) => {
       let minY = height, maxY = -1;
@@ -183,7 +185,8 @@
       component.length >= minMajorArea
       || (component.length >= 4 && getBounds(component).maxY <= topBandBottom)
     )].slice(0, 17);
-    if (meaningful.length < 2) return;
+    if (meaningful.length < 2) return false;
+    if (!connectAll.checked) return true;
     const boundary = (points) => points.filter((pos) => {
       const x = pos % width, y = (pos / width) | 0;
       return neighbours.some((delta) => {
@@ -195,7 +198,23 @@
     const main = boundary(meaningful[0]);
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.strokeStyle = "#26352e";
+    ctx.strokeStyle = "#e53935";
+    ctx.lineWidth = Math.max(2, (window.devicePixelRatio || 1) * 2);
+    for (const component of meaningful.slice(1)) {
+      let minX = width, minY = height, maxX = 0, maxY = 0;
+      for (const pos of component) {
+        const x = pos % width, y = (pos / width) | 0;
+        minX = Math.min(minX, x); minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+      }
+      const pad = Math.max(2, (window.devicePixelRatio || 1) * 2);
+      ctx.beginPath();
+      ctx.ellipse((minX + maxX) / 2, (minY + maxY) / 2,
+        Math.max(2, (maxX - minX) / 2) + pad,
+        Math.max(2, (maxY - minY) / 2) + pad, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = "#ffeb3b";
     ctx.lineWidth = Math.max(2, (window.devicePixelRatio || 1) * 1.5);
     ctx.lineCap = "round";
     for (const part of meaningful.slice(1).map(boundary)) {
@@ -214,6 +233,7 @@
       ctx.stroke();
     }
     ctx.restore();
+    return true;
   }
 
   let otFont = null;
@@ -235,7 +255,8 @@
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const available = preview.clientWidth - 64;
     if (!otFont || !window.ClipperLib) {
-      renderFallback(dpr, available);
+      const hasConnectable = renderFallback(dpr, available);
+      updateConnectAvailability(hasConnectable);
       return;
     }
     const inkWidths = words.map((w) => {
@@ -251,6 +272,7 @@
     const longestPx = reference * size / 100;
     const radius = weight / 100 * longestPx;
     const pad = radius + 2;
+    let hasConnectable = false;
     nodes.forEach((canvas, i) => {
       const path = otFont.getPath(words[i], 0, 0, size);
       const box = path.getBoundingBox();
@@ -264,8 +286,17 @@
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       const text = unionNonZero(glyphPolygons(path.commands, pad - box.x1, pad - box.y1, dpr));
       fillPaths(ctx, radius > 0 ? roundOffset(text, radius, dpr) : text, "#26352e");
-      connectRasterComponents(ctx, canvas);
+      hasConnectable = connectRasterComponents(ctx, canvas) || hasConnectable;
     });
+    updateConnectAvailability(hasConnectable);
+  }
+
+  function updateConnectAvailability(hasConnectable) {
+    connectAll.disabled = !hasConnectable;
+    if (!hasConnectable) connectAll.checked = false;
+    connectHint.hidden = !hasConnectable || !connectAll.checked;
+    connectStatus.hidden = !hasConnectable;
+    syncConnectStatus();
   }
 
   // Used until the font file is loaded or when it is not published next to the page.
@@ -277,6 +308,7 @@
     const longest = Math.max(...widths);
     const size = Math.min(110, 100 * available / (longest * (1 + 2 * weight / 100)));
     const radius = weight / 100 * longest * size / 100;
+    let hasConnectable = false;
     nodes.forEach((canvas, i) => {
       const pad = radius + 2;
       const cssWidth = widths[i] * size / 100 + pad * 2;
@@ -294,8 +326,9 @@
       const y = pad + size * 0.88;
       if (radius > 0) ctx.strokeText(words[i], pad, y);
       ctx.fillText(words[i], pad, y);
-      connectRasterComponents(ctx, canvas);
+      hasConnectable = connectRasterComponents(ctx, canvas) || hasConnectable;
     });
+    return hasConnectable;
   }
 
   function syncUi() {
