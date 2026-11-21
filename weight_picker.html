@@ -61,6 +61,7 @@
   const words = (params.get("text") || "Application started").split(/\s+/).filter(Boolean).slice(0, 12);
   const connectAll = document.getElementById("connectAll");
   connectAll.checked = params.get("connect_all") === "true";
+  let connectRequested = connectAll.checked;
   const connectStatus = document.getElementById("connectStatus");
   const connectHint = document.getElementById("connectHint");
   function syncConnectStatus() {
@@ -69,6 +70,7 @@
       : "&#1054;&#1082;&#1088;&#1077;&#1084;&#1110; &#1077;&#1083;&#1077;&#1084;&#1077;&#1085;&#1090;&#1080; &#1079;&#1072;&#1083;&#1080;&#1096;&#1072;&#1090;&#1100;&#1089;&#1103; &#1085;&#1077;&#1079;&#8217;&#1108;&#1076;&#1085;&#1072;&#1085;&#1080;&#1084;&#1080;.";
   }
   connectAll.addEventListener("change", () => {
+    connectRequested = connectAll.checked;
     syncConnectStatus();
     render();
   });
@@ -293,7 +295,7 @@
 
   function updateConnectAvailability(hasConnectable) {
     connectAll.disabled = !hasConnectable;
-    if (!hasConnectable) connectAll.checked = false;
+    connectAll.checked = connectRequested;
     connectHint.hidden = !hasConnectable || !connectAll.checked;
     connectStatus.hidden = !hasConnectable;
     syncConnectStatus();
