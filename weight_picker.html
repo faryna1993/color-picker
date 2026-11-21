@@ -167,10 +167,22 @@
     }
     if (components.length < 2) return;
     components.sort((a, b) => b.length - a.length);
-    const minComponentSize = Math.max(8, Math.floor(components[0].length * 0.001));
-    const meaningful = components
-      .filter((component, index) => index === 0 || component.length >= minComponentSize)
-      .slice(0, 17);
+    const getBounds = (points) => {
+      let minY = height, maxY = -1;
+      for (const point of points) {
+        const y = (point / width) | 0;
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+      }
+      return { minY, maxY };
+    };
+    const mainBounds = getBounds(components[0]);
+    const topBandBottom = mainBounds.minY + (mainBounds.maxY - mainBounds.minY) * 0.55;
+    const minMajorArea = Math.max(4, Math.floor(components[0].length * 0.01));
+    const meaningful = [components[0], ...components.slice(1).filter((component) =>
+      component.length >= minMajorArea
+      || (component.length >= 4 && getBounds(component).maxY <= topBandBottom)
+    )].slice(0, 17);
     if (meaningful.length < 2) return;
     const boundary = (points) => points.filter((pos) => {
       const x = pos % width, y = (pos / width) | 0;
