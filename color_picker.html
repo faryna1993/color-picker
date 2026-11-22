@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Кольори надпису</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/clipper-lib@6.4.2/clipper.js"></script>
 <style>
   * { box-sizing: border-box; }
   body { margin: 0; font-family: system-ui, sans-serif; padding-bottom: 60px;
@@ -16,8 +14,12 @@
   #preview { background: #b7b2a8; border-radius: 12px; padding: 26px 10px; margin-bottom: 8px;
              display: flex; flex-direction: column; align-items: center; gap: 10px;
              min-height: 130px; justify-content: center; overflow: hidden; }
-  .word { display: block; position: relative; line-height: 1; white-space: nowrap; cursor: default; }
-  .word canvas { display: block; }
+  .botfont .word { font-family: "BotFont", cursive; font-weight: 400; }
+  .word { font-family: "Lobster", "Brush Script MT", cursive, system-ui; font-weight: 700;
+          line-height: 1.1; white-space: nowrap; paint-order: stroke fill; position: relative; isolation: isolate;
+          text-shadow: var(--wshadow, none); color: var(--ink); cursor: default; }
+  .word::before { content: attr(data-t); position: absolute; left: 0; top: 0; z-index: -1; pointer-events: none;
+          color: var(--base); text-shadow: var(--shadow, none); }
   .each .word { cursor: pointer; }
   .word.sel { outline: 2px dashed rgba(255,255,255,.95); outline-offset: 8px; border-radius: 4px; }
   .seg { display: flex; gap: 8px; margin-bottom: 10px; }
@@ -62,6 +64,9 @@
           border: none; border-radius: 10px; background: var(--tg-theme-button-color, #2481cc);
           color: var(--tg-theme-button-text-color, #fff); }
   #done:disabled { opacity: .45; }
+  #save { display: block; width: 100%; max-width: 560px; margin: 0 auto 6px; padding: 8px; font-size: 14px;
+          border: 1px solid var(--tg-theme-button-color, #2481cc); border-radius: 10px;
+          background: var(--tg-theme-bg-color, #fff); color: var(--tg-theme-text-color, #111); }
   #missing { text-align: center; font-size: 11px; opacity: .75; margin-bottom: 4px; }
   #missing:empty { display: none; }
 </style>
@@ -103,6 +108,7 @@
   </div>
 </div>
 <div class="bar">
+  <button id="save" type="button">Зберегти фото</button>
   <div id="missing"></div>
   <button id="done" disabled>Передати далі</button>
 </div>
@@ -128,6 +134,7 @@
         try {
           const face = new FontFace("BotFont", `url(fonts/${fontId}.${ext})`);
           document.fonts.add(await face.load());
+          document.querySelectorAll(".word").forEach((w) => { w.style.fontFamily = "BotFont"; w.style.fontWeight = "400"; });
           document.documentElement.classList.add("botfont");
           return;
         } catch (e) { /* try next extension */ }
@@ -158,9 +165,8 @@
   const nodes = words.map((w, i) => {
     const el = document.createElement("div");
     el.className = "word";
-    const canvas = document.createElement("canvas");
-    canvas.setAttribute("aria-label", w);
-    el.appendChild(canvas);
+    el.textContent = w;
+    el.dataset.t = w;
     el.addEventListener("click", () => {
       if (words.length < 2) return;
       state.sel = [i];
@@ -174,283 +180,45 @@
   const current = () => styles[targets()[0]];
   const fmt = (n) => n.toFixed(1).replace(".", ",") + "%";
 
-  function squaredDistanceTransform(alpha, width, height) {
-    const count = width * height;
-    const infinity = 1e20;
-    const vertical = new Float32Array(count);
-    const distances = new Float32Array(count);
-    const input = new Float64Array(Math.max(width, height));
-    const output = new Float64Array(Math.max(width, height));
-    const vertices = new Int32Array(Math.max(width, height));
-    const boundaries = new Float64Array(Math.max(width, height) + 1);
-
-    function transform1d(length) {
-      let first = 0;
-      while (first < length && input[first] >= infinity / 2) first++;
-      if (first === length) {
-        output.fill(infinity, 0, length);
-        return;
-      }
-      let k = 0;
-      vertices[0] = first;
-      boundaries[0] = -Infinity;
-      boundaries[1] = Infinity;
-      for (let q = first + 1; q < length; q++) {
-        if (input[q] >= infinity / 2) continue;
-        let crossing;
-        do {
-          const v = vertices[k];
-          crossing = ((input[q] + q * q) - (input[v] + v * v)) / (2 * (q - v));
-          if (crossing <= boundaries[k]) k--;
-          else break;
-        } while (k >= 0);
-        if (k < 0) {
-          k = 0;
-          vertices[0] = q;
-          boundaries[0] = -Infinity;
-          boundaries[1] = Infinity;
-        } else {
-          k++;
-          vertices[k] = q;
-          boundaries[k] = crossing;
-          boundaries[k + 1] = Infinity;
-        }
-      }
-      k = 0;
-      for (let q = 0; q < length; q++) {
-        while (boundaries[k + 1] < q) k++;
-        const delta = q - vertices[k];
-        output[q] = delta * delta + input[vertices[k]];
+  function roundShadow(r, color) {
+    if (r < 0.3) return "none";
+    const parts = [];
+    for (const k of [1, 0.75, 0.5, 0.25]) {
+      const rad = r * k;
+      const steps = Math.min(120, Math.max(12, Math.ceil(2 * Math.PI * rad / 1.2)));
+      for (let j = 0; j < steps; j++) {
+        const a = 2 * Math.PI * j / steps;
+        parts.push((rad * Math.cos(a)).toFixed(2) + "px " + (rad * Math.sin(a)).toFixed(2) + "px 0 " + color);
       }
     }
-
-    for (let x = 0; x < width; x++) {
-      for (let y = 0; y < height; y++) {
-        input[y] = alpha[y * width + x] ? 0 : infinity;
-      }
-      transform1d(height);
-      for (let y = 0; y < height; y++) vertical[y * width + x] = output[y];
-    }
-    for (let y = 0; y < height; y++) {
-      const row = y * width;
-      for (let x = 0; x < width; x++) input[x] = vertical[row + x];
-      transform1d(width);
-      for (let x = 0; x < width; x++) distances[row + x] = output[x];
-    }
-    return distances;
-  }
-
-  function dilateAlpha(sourceAlpha, distances, radius) {
-    const result = new Uint8ClampedArray(distances.length);
-    if (radius <= 0) return result;
-    const edge = radius + 0.5;
-    const edgeSquared = edge * edge;
-    for (let i = 0; i < distances.length; i++) {
-      const distanceSquared = distances[i];
-      if (distanceSquared < edgeSquared) {
-        const expanded = Math.round(Math.min(1, edge - Math.sqrt(distanceSquared)) * 255);
-        result[i] = Math.max(sourceAlpha[i], expanded);
-      }
-    }
-    return result;
-  }
-
-  // Vector path: glyph outlines (non-zero fill, so overlapping letters merge) are offset
-  // with round joins, the equivalent of the shapely buffer used by dxf_generator.py.
-  const CLIP_SCALE = 16;
-
-  function glyphPolygons(commands, dx, dy, k) {
-    const paths = [];
-    let cur = null;
-    let px = 0, py = 0;
-    const add = (x, y) => { cur.push({ X: Math.round((x + dx) * k * CLIP_SCALE), Y: Math.round((y + dy) * k * CLIP_SCALE) }); px = x; py = y; };
-    for (const c of commands) {
-      if (c.type === "M") { cur = []; paths.push(cur); add(c.x, c.y); }
-      else if (c.type === "L") add(c.x, c.y);
-      else if (c.type === "Q") {
-        const x0 = px, y0 = py;
-        for (let t = 1; t <= 12; t++) {
-          const u = t / 12, v = 1 - u;
-          add(v * v * x0 + 2 * v * u * c.x1 + u * u * c.x, v * v * y0 + 2 * v * u * c.y1 + u * u * c.y);
-        }
-      } else if (c.type === "C") {
-        const x0 = px, y0 = py;
-        for (let t = 1; t <= 16; t++) {
-          const u = t / 16, v = 1 - u;
-          add(v * v * v * x0 + 3 * v * v * u * c.x1 + 3 * v * u * u * c.x2 + u * u * u * c.x,
-              v * v * v * y0 + 3 * v * v * u * c.y1 + 3 * v * u * u * c.y2 + u * u * u * c.y);
-        }
-      }
-    }
-    return paths.filter((p) => p.length >= 3);
-  }
-
-  function unionNonZero(paths) {
-    const clipper = new ClipperLib.Clipper();
-    clipper.AddPaths(paths, ClipperLib.PolyType.ptSubject, true);
-    const solution = new ClipperLib.Paths();
-    clipper.Execute(ClipperLib.ClipType.ctUnion, solution, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
-    return solution;
-  }
-
-  function roundOffset(paths, radius, k) {
-    const offsetter = new ClipperLib.ClipperOffset(2, 0.1 * CLIP_SCALE);
-    offsetter.AddPaths(paths, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
-    const solution = new ClipperLib.Paths();
-    offsetter.Execute(solution, radius * k * CLIP_SCALE);
-    return solution;
-  }
-
-  function fillPaths(ctx, paths, color) {
-    const region = new Path2D();
-    for (const path of paths) {
-      path.forEach((p, i) => (i ? region.lineTo(p.X / CLIP_SCALE, p.Y / CLIP_SCALE) : region.moveTo(p.X / CLIP_SCALE, p.Y / CLIP_SCALE)));
-      region.closePath();
-    }
-    ctx.fillStyle = color;
-    ctx.fill(region, "nonzero");
-  }
-
-  let otFont = null;
-  const canVector = () => otFont && window.ClipperLib;
-  if (fontId && window.opentype) {
-    (async () => {
-      for (const ext of ["ttf", "otf"]) {
-        try {
-          const response = await fetch(`fonts/${fontId}.${ext}`);
-          if (!response.ok) continue;
-          otFont = opentype.parse(await response.arrayBuffer());
-          render();
-          return;
-        } catch (e) { /* try next extension */ }
-      }
-    })();
-  }
-
-  function renderVector(sizeFor, longestInk) {
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const size = sizeFor;
-    nodes.forEach((n, i) => {
-      const s = {
-        ink: styles[i].text || "#e8e8e8",
-        bg: styles[i].bg && styles[i].offset > 0 ? styles[i].bg : null,
-        off: styles[i].offset, wt: styles[i].weight,
-      };
-      const longestPx = longestInk * size / 100;
-      const weightRadius = s.wt / 100 * longestPx;
-      const baseRadius = s.bg ? (s.off + s.wt) / 100 * longestPx : 0;
-      const pad = Math.max(baseRadius, weightRadius) + 2;
-      const path = otFont.getPath(words[i], 0, 0, size);
-      const box = path.getBoundingBox();
-      const cssWidth = box.x2 - box.x1 + pad * 2;
-      const cssHeight = box.y2 - box.y1 + pad * 2;
-      const canvas = n.firstElementChild;
-      canvas.style.width = `${cssWidth}px`;
-      canvas.style.height = `${cssHeight}px`;
-      canvas.width = Math.ceil(cssWidth * dpr);
-      canvas.height = Math.ceil(cssHeight * dpr);
-      const ctx = canvas.getContext("2d");
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      const text = unionNonZero(glyphPolygons(path.commands, pad - box.x1, pad - box.y1, dpr));
-      if (s.bg) fillPaths(ctx, roundOffset(text, baseRadius, dpr), s.bg);
-      fillPaths(ctx, weightRadius > 0 ? roundOffset(text, weightRadius, dpr) : text, s.ink);
-      n.classList.toggle("sel", words.length > 1 && !isAll() && state.sel.includes(i));
-    });
-    preview.classList.toggle("each", words.length > 1);
-  }
-
-  function colorizeOffsets(baseAlpha, inkAlpha, baseColor, inkColor, width, height) {
-    const result = new Uint8ClampedArray(width * height * 4);
-    const color = (hex) => hex === "transparent"
-      ? [0, 0, 0]
-      : [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-    const [br, bg, bb] = color(baseColor);
-    const [ir, ig, ib] = color(inkColor);
-    for (let i = 0; i < baseAlpha.length; i++) {
-      const aInk = inkAlpha[i] / 255;
-      const aBase = baseAlpha[i] / 255;
-      const outAlpha = aInk + aBase * (1 - aInk);
-      const pixel = i * 4;
-      if (!outAlpha) continue;
-      result[pixel] = Math.round((ir * aInk + br * aBase * (1 - aInk)) / outAlpha);
-      result[pixel + 1] = Math.round((ig * aInk + bg * aBase * (1 - aInk)) / outAlpha);
-      result[pixel + 2] = Math.round((ib * aInk + bb * aBase * (1 - aInk)) / outAlpha);
-      result[pixel + 3] = Math.round(outAlpha * 255);
-    }
-    return result;
+    return parts.join(",");
   }
 
   function render() {
     const available = preview.clientWidth - 64;
-    const measure = document.createElement("canvas").getContext("2d");
-    const fontFamily = document.documentElement.classList.contains("botfont")
-      ? '"BotFont", cursive'
-      : '"Lobster", "Brush Script MT", cursive, system-ui';
-    const fontWeight = document.documentElement.classList.contains("botfont") ? 400 : 700;
-    measure.font = `${fontWeight} 100px ${fontFamily}`;
-    const widths = words.map((word) => measure.measureText(word).width);
     const view = (i) => ({
       ink: styles[i].text || "#e8e8e8",
       bg: styles[i].bg && styles[i].offset > 0 ? styles[i].bg : "transparent",
       off: styles[i].offset, wt: styles[i].weight,
     });
+    nodes.forEach((n) => { n.style.fontSize = "100px"; n.style.setProperty("--shadow", "none"); n.style.setProperty("--wshadow", "none"); });
+    const widths = nodes.map((n) => n.getBoundingClientRect().width);
     const longest = Math.max(...widths);
-    const vector = canVector();
-    let inkWidths = widths;
-    if (vector) {
-      inkWidths = words.map((word) => {
-        const b = otFont.getPath(word, 0, 0, 100).getBoundingBox();
-        return b.x2 - b.x1;
-      });
-    }
-    const reference = vector ? Math.max(...inkWidths) : longest;
     let size = 100;
     for (let k = 0; k < 3; k++) {
-      const need = Math.max(...nodes.map((_, i) => (inkWidths[i] + 2 * ((view(i).off + view(i).wt) / 100) * reference) * size / 100));
+      const need = Math.max(...nodes.map((_, i) => (widths[i] + 2 * ((view(i).off + view(i).wt) / 100) * longest) * size / 100));
       size = Math.min(size * available / need, 110);
     }
-    if (vector) { renderVector(size, reference); return; }
     const longestPx = longest * size / 100;
     nodes.forEach((n, i) => {
       const s = view(i);
-      const weightRadius = s.wt / 100 * longestPx;
-      const baseRadius = s.off > 0 ? (s.off + s.wt) / 100 * longestPx : 0;
-      const pad = Math.max(baseRadius, weightRadius) + 2;
-      const textWidth = widths[i] * size / 100;
-      const height = size * 1.2 + pad * 2;
-      const cssWidth = textWidth + pad * 2;
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
-      const canvas = n.firstElementChild;
-      canvas.style.width = `${cssWidth}px`;
-      canvas.style.height = `${height}px`;
-      const pixelWidth = Math.ceil(cssWidth * dpr);
-      const pixelHeight = Math.ceil(height * dpr);
-      canvas.width = pixelWidth;
-      canvas.height = pixelHeight;
-      const mask = document.createElement("canvas");
-      mask.width = pixelWidth;
-      mask.height = pixelHeight;
-      const maskCtx = mask.getContext("2d");
-      maskCtx.scale(dpr, dpr);
-      maskCtx.font = `${fontWeight} ${size}px ${fontFamily}`;
-      maskCtx.textBaseline = "alphabetic";
-      const x = pad;
-      const y = pad + size * 0.88;
-      maskCtx.fillStyle = "#fff";
-      maskCtx.fillText(words[i], x, y);
-      const maskData = maskCtx.getImageData(0, 0, pixelWidth, pixelHeight).data;
-      const sourceAlpha = new Uint8Array(pixelWidth * pixelHeight);
-      for (let p = 0; p < sourceAlpha.length; p++) sourceAlpha[p] = maskData[p * 4 + 3];
-      const distances = squaredDistanceTransform(sourceAlpha, pixelWidth, pixelHeight);
-      const baseAlpha = s.off > 0
-        ? dilateAlpha(sourceAlpha, distances, baseRadius * dpr)
-        : new Uint8ClampedArray(sourceAlpha.length);
-      const inkAlpha = weightRadius > 0
-        ? dilateAlpha(sourceAlpha, distances, weightRadius * dpr)
-        : sourceAlpha;
-      const result = colorizeOffsets(baseAlpha, inkAlpha, s.bg, s.ink, pixelWidth, pixelHeight);
-      const ctx = canvas.getContext("2d");
-      ctx.putImageData(new ImageData(result, pixelWidth, pixelHeight), 0, 0);
+      n.style.fontSize = size + "px";
+      n.style.setProperty("--ink", s.ink);
+      n.style.setProperty("--base", s.bg);
+      // PIL stroke grows on each side; CSS stroke is centred, so double it
+      // text-stroke gives sharp miter spikes; a ring of shadows gives a round offset like the DXF buffer
+      n.style.setProperty("--wshadow", roundShadow(s.wt / 100 * longestPx, s.ink));
+      n.style.setProperty("--shadow", s.off > 0 ? roundShadow((s.off + s.wt) / 100 * longestPx, s.bg) : "none");
       n.classList.toggle("sel", words.length > 1 && !isAll() && state.sel.includes(i));
     });
     preview.classList.toggle("each", words.length > 1);
@@ -559,6 +327,50 @@
     });
   }
 
+  async function savePreview() {
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    render();
+    const box = preview.getBoundingClientRect();
+    const scale = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(box.width * scale);
+    canvas.height = Math.ceil(box.height * scale);
+    const ctx = canvas.getContext("2d");
+    ctx.scale(scale, scale);
+    ctx.fillStyle = "#b7b2a8";
+    ctx.fillRect(0, 0, box.width, box.height);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineJoin = "round";
+    const longest = Math.max(...nodes.map((node) => node.getBoundingClientRect().width));
+    nodes.forEach((node, i) => {
+      const rect = node.getBoundingClientRect();
+      const style = styles[i];
+      ctx.font = getComputedStyle(node).font;
+      const x = rect.left - box.left + rect.width / 2;
+      const y = rect.top - box.top + rect.height / 2;
+      const backing = (style.offset + style.weight) / 100 * longest;
+      const weight = style.weight / 100 * longest;
+      if (style.offset > 0 && backing > 0) {
+        ctx.strokeStyle = style.bg;
+        ctx.lineWidth = backing * 2;
+        ctx.strokeText(words[i], x, y);
+      }
+      if (weight > 0) {
+        ctx.strokeStyle = style.text;
+        ctx.lineWidth = weight * 2;
+        ctx.strokeText(words[i], x, y);
+      }
+      ctx.fillStyle = style.text;
+      ctx.fillText(words[i], x, y);
+    });
+    const link = document.createElement("a");
+    link.download = (words.join("_").replace(/[^a-z0-9_-]+/gi, "_").slice(0, 60) || "inscription") + ".png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  }
+
+  document.getElementById("save").addEventListener("click", savePreview);
   doneBtn.addEventListener("click", () => {
     if (doneBtn.disabled) return;
     tg.sendData(JSON.stringify({ styles: styles.map((s) => ({
