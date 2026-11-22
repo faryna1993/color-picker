@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Мої замовлення</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="./history-config.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0 0 24px; font: 15px system-ui, sans-serif;
+         background: var(--tg-theme-bg-color, #f4f4f4); color: var(--tg-theme-text-color, #111); }
+  main { max-width: 620px; margin: auto; padding: 14px; }
+  h1 { font-size: 21px; margin: 4px 0 14px; }
+  .toolbar { position: sticky; top: 0; z-index: 2; padding: 8px 0; background: var(--tg-theme-bg-color, #f4f4f4); }
+  input, select { width: 100%; padding: 11px 12px; border: 1px solid rgba(127,127,127,.25); border-radius: 11px;
+                  background: var(--tg-theme-secondary-bg-color, #fff); color: inherit; font: inherit; }
+  .filters { display: grid; grid-template-columns: 1fr 145px; gap: 8px; }
+  #orders { display: grid; gap: 12px; }
+  .order { overflow: hidden; border-radius: 15px; background: var(--tg-theme-secondary-bg-color, #fff);
+           box-shadow: 0 2px 9px rgba(0,0,0,.06); }
+  .preview { display: block; width: 100%; max-height: 310px; aspect-ratio: 1.55; object-fit: contain; background: #e8e5df; }
+  .content { padding: 12px 14px 14px; }
+  .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .number { font-weight: 750; font-size: 17px; }
+  .status { flex: none; padding: 5px 9px; border-radius: 999px; font-size: 12px; font-weight: 650; background: rgba(90,130,100,.15); }
+  .status.pending { background: rgba(196,142,62,.18); }
+  .date { margin-top: 4px; color: var(--tg-theme-hint-color, #777); font-size: 12px; }
+  .description { margin: 10px 0; line-height: 1.4; overflow-wrap: anywhere; }
+  .details { display: flex; flex-wrap: wrap; gap: 7px; }
+  .tag { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border-radius: 9px;
+         background: var(--tg-theme-bg-color, #f3f3f3); font-size: 12px; }
+  .swatches { display: inline-flex; gap: 3px; }
+  .swatch { width: 14px; height: 14px; border: 1px solid rgba(0,0,0,.18); border-radius: 50%; }
+  .message { padding: 28px 12px; text-align: center; color: var(--tg-theme-hint-color, #777); line-height: 1.5; }
+  #more, #retry { padding: 11px 14px; border: 0; border-radius: 10px; background: var(--tg-theme-button-color, #2481cc);
+                  color: var(--tg-theme-button-text-color, #fff); font: inherit; }
+  #more { width: 100%; margin: 14px 0; }
+  #more[hidden] { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Мої замовлення</h1>
+  <div class="toolbar"><div class="filters">
+    <input id="search" type="search" placeholder="Пошук за номером або написом" autocomplete="off">
+    <select id="status" aria-label="Фільтр за статусом">
+      <option value="">Усі статуси</option><option value="В обробці">В обробці</option><option value="Готове">Готові</option>
+    </select>
+  </div></div>
+  <div id="orders" aria-live="polite"><div class="message">Завантажую замовлення…</div></div>
+  <button id="more" type="button" hidden>Показати ще</button>
+</main>
+<script>
+  const tg = window.Telegram?.WebApp;
+  tg?.ready();
+  tg?.expand();
+  const configuredApi = window.ORDER_HISTORY_API_URL || "";
+  const apiBase = configuredApi.replace(/\/$/, "");
+  const list = document.getElementById("orders");
+  const more = document.getElementById("more");
+  const search = document.getElementById("search");
+  const statusFilter = document.getElementById("status");
+  let offset = 0, loading = false, hasMore = true, debounce;
+  const escapeHtml = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  function colorDots(summary) {
+    const colors = [...new Set((String(summary || "").match(/#[0-9a-f]{6}/gi) || []).map(c => c.toUpperCase()))].slice(0, 8);
+    return colors.length ? `<span class="tag">Колір <span class="swatches">${colors.map(c => `<i class="swatch" title="${c}" style="background:${c}"></i>`).join("")}</span></span>` : "";
+  }
+  function orderCard(order) {
+    const id = escapeHtml(order.id), status = escapeHtml(order.status || "В обробці");
+    const date = order.created_at ? new Date(order.created_at).toLocaleDateString("uk-UA", {day:"2-digit",month:"2-digit",year:"numeric"}) : "";
+    const font = Number(order.font_number) > 0 ? `<span class="tag">Шрифт №${escapeHtml(order.font_number)}</span>` : "";
+    const material = order.material && order.material !== "—" ? `<span class="tag">${escapeHtml(order.material)}</span>` : "";
+    const size = order.size && order.size !== "—" ? `<span class="tag">${escapeHtml(order.size)} см</span>` : "";
+    const img = order.has_image ? `<img class="preview" data-order-image="${id}" alt="Ескіз замовлення №${id}" loading="lazy">` : "";
+    return `<article class="order">${img}<div class="content"><div class="top"><span class="number">Замовлення №${id}</span><span class="status ${status === "Готове" ? "" : "pending"}">${status}</span></div><div class="date">${escapeHtml(date)}</div><div class="description">${escapeHtml(order.input_text || order.category || "Індивідуальне замовлення")}</div><div class="details">${font}${material}${size}${colorDots(order.colors)}</div></div></article>`;
+  }
+  function error(message) {
+    list.innerHTML = `<div class="message">${escapeHtml(message)}<br><br><button id="retry" type="button">Спробувати ще раз</button></div>`;
+    document.getElementById("retry").addEventListener("click", () => load(true));
+  }
+  async function loadImage(img) {
+    try {
+      const response = await fetch(`${apiBase}/api/orders/${encodeURIComponent(img.dataset.orderImage)}/image`, {
+        headers: {Authorization: `tma ${tg.initData}`}, credentials: "omit"
+      });
+      if (!response.ok) return;
+      img.src = URL.createObjectURL(await response.blob());
+    } catch (_) { /* The order details remain useful when an image is unavailable. */ }
+  }
+  async function load(reset = false) {
+    if (loading || (!hasMore && !reset)) return;
+    if (!apiBase || !/^https:\/\//i.test(apiBase)) { error("Переглядач ще не налаштований: потрібна HTTPS-адреса API."); return; }
+    if (!tg?.initData) { error("Відкрий історію кнопкою «Мої замовлення» в Telegram."); return; }
+    loading = true; more.disabled = true;
+    if (reset) { offset = 0; hasMore = true; list.innerHTML = '<div class="message">Завантажую замовлення…</div>'; }
+    try {
+      const query = new URLSearchParams({offset:String(offset),limit:"20",q:search.value.trim(),status:statusFilter.value});
+      const response = await fetch(`${apiBase}/api/orders?${query}`, {headers:{Authorization:`tma ${tg.initData}`},credentials:"omit"});
+      if (!response.ok) throw new Error(response.status === 401 ? "Сеанс Telegram недійсний. Закрий сторінку та відкрий її знову через бота." : "Не вдалося завантажити історію.");
+      const data = await response.json();
+      if (reset) list.innerHTML = "";
+      if (data.orders?.length) {
+        list.insertAdjacentHTML("beforeend", data.orders.map(orderCard).join(""));
+        offset += data.orders.length;
+        list.querySelectorAll("img[data-order-image]:not([src])").forEach(loadImage);
+      }
+      hasMore = Boolean(data.has_more); more.hidden = !hasMore;
+      if (reset && !data.orders?.length) list.innerHTML = '<div class="message">Замовлень поки немає.</div>';
+    } catch (e) { error(e.message || "Не вдалося завантажити замовлення."); more.hidden = true; }
+    finally { loading = false; more.disabled = false; }
+  }
+  more.addEventListener("click", () => load());
+  search.addEventListener("input", () => { clearTimeout(debounce); debounce = setTimeout(() => load(true), 250); });
+  statusFilter.addEventListener("change", () => load(true));
+  load(true);
+</script>
+</body>
+</html>
