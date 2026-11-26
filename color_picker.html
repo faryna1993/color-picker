@@ -106,6 +106,7 @@
   <div id="missing"></div>
   <button id="done" disabled>Передати далі</button>
 </div>
+<script src="picker_layout.js?v=1"></script>
 <script>
   const tg = window.Telegram.WebApp;
   tg.ready();
@@ -122,18 +123,7 @@
   const params = new URLSearchParams(location.search);
   const words = (params.get("text") || "Abc").split(/\s+/).filter(Boolean).slice(0, 12);
   const fontId = (params.get("font") || "").replace(/[^a-z0-9-]/gi, "");
-  if (fontId) {
-    (async () => {
-      for (const ext of ["ttf", "otf"]) {
-        try {
-          const face = new FontFace("BotFont", `url(fonts/${fontId}.${ext})`);
-          document.fonts.add(await face.load());
-          document.documentElement.classList.add("botfont");
-          return;
-        } catch (e) { /* try next extension */ }
-      }
-    })();
-  }
+
 
   // styles param: "ink-bg-offset" per word, "_" for words not configured yet
   const given = (params.get("styles") || "").split(",");
@@ -148,6 +138,8 @@
   const isAll = () => state.sel.length === words.length;
 
   const preview = document.getElementById("preview");
+  const picker = createPickerLayout(params, words, fontId, preview);
+  picker.load().then(render);
   const sv = document.getElementById("sv");
   const hueBar = document.getElementById("hue");
   const hex = document.getElementById("hex");
@@ -311,23 +303,9 @@
     ctx.fill(region, "nonzero");
   }
 
-  let otFont = null;
-  const canVector = () => otFont && window.ClipperLib;
-  if (fontId && window.opentype) {
-    (async () => {
-      for (const ext of ["ttf", "otf"]) {
-        try {
-          const response = await fetch(`fonts/${fontId}.${ext}`);
-          if (!response.ok) continue;
-          otFont = opentype.parse(await response.arrayBuffer());
-          render();
-          return;
-        } catch (e) { /* try next extension */ }
-      }
-    })();
-  }
+  const canVector = () => window.ClipperLib && words.every((_, i) => picker.vector(i));
 
-  function renderVector(sizeFor, longestInk) {
+  function renderVector(sizeFor, longestInk, naturalWidth) {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const size = sizeFor;
     nodes.forEach((n, i) => {
@@ -340,7 +318,7 @@
       const weightRadius = s.wt / 100 * longestPx;
       const baseRadius = s.bg ? (s.off + s.wt) / 100 * longestPx : 0;
       const pad = Math.max(baseRadius, weightRadius) + 2;
-      const path = otFont.getPath(words[i], 0, 0, size);
+      const path = picker.vector(i).getPath(words[i], 0, 0, size * picker.scales[i]);
       const box = path.getBoundingBox();
       const cssWidth = box.x2 - box.x1 + pad * 2;
       const cssHeight = box.y2 - box.y1 + pad * 2;
@@ -356,6 +334,7 @@
       fillPaths(ctx, weightRadius > 0 ? roundOffset(text, weightRadius, dpr) : text, s.ink);
       n.classList.toggle("sel", words.length > 1 && !isAll() && state.sel.includes(i));
     });
+    picker.arrange(nodes, naturalWidth);
     preview.classList.toggle("each", words.length > 1);
   }
 
@@ -383,41 +362,40 @@
   function render() {
     const available = preview.clientWidth - 64;
     const measure = document.createElement("canvas").getContext("2d");
-    const fontFamily = document.documentElement.classList.contains("botfont")
-      ? '"BotFont", cursive'
-      : '"Lobster", "Brush Script MT", cursive, system-ui';
-    const fontWeight = document.documentElement.classList.contains("botfont") ? 400 : 700;
-    measure.font = `${fontWeight} 100px ${fontFamily}`;
-    const widths = words.map((word) => measure.measureText(word).width);
+    const widths = words.map((word, i) => {
+      measure.font = `${picker.hasFont(i) ? 400 : 700} 100px ${picker.family(i)}`;
+      return measure.measureText(word).width;
+    });
     const view = (i) => ({
       ink: styles[i].text || "#e8e8e8",
       bg: styles[i].bg && styles[i].offset > 0 ? styles[i].bg : "transparent",
       off: styles[i].offset, wt: styles[i].weight,
     });
-    const longest = Math.max(...widths);
     const vector = canVector();
     let inkWidths = widths;
     if (vector) {
-      inkWidths = words.map((word) => {
-        const b = otFont.getPath(word, 0, 0, 100).getBoundingBox();
+      inkWidths = words.map((word, i) => {
+        const b = picker.vector(i).getPath(word, 0, 0, 100).getBoundingBox();
         return b.x2 - b.x1;
       });
     }
-    const reference = vector ? Math.max(...inkWidths) : longest;
+    const reference = Math.max(...inkWidths.map((width, i) => width * picker.scales[i]));
     let size = 100;
     for (let k = 0; k < 3; k++) {
-      const need = Math.max(...nodes.map((_, i) => (inkWidths[i] + 2 * ((view(i).off + view(i).wt) / 100) * reference) * size / 100));
+      const need = Math.max(...nodes.map((_, i) => (inkWidths[i] * picker.scales[i] + 2 * ((view(i).off + view(i).wt) / 100) * reference) * size / 100));
       size = Math.min(size * available / need, 110);
     }
-    if (vector) { renderVector(size, reference); return; }
-    const longestPx = longest * size / 100;
+    const naturalWidth = Math.max(...inkWidths) * size / 100;
+    if (vector) { renderVector(size, reference, naturalWidth); return; }
+    const longestPx = reference * size / 100;
     nodes.forEach((n, i) => {
       const s = view(i);
       const weightRadius = s.wt / 100 * longestPx;
       const baseRadius = s.off > 0 ? (s.off + s.wt) / 100 * longestPx : 0;
       const pad = Math.max(baseRadius, weightRadius) + 2;
-      const textWidth = widths[i] * size / 100;
-      const height = size * 1.2 + pad * 2;
+      const wordSize = size * picker.scales[i];
+      const textWidth = widths[i] * wordSize / 100;
+      const height = wordSize * 1.2 + pad * 2;
       const cssWidth = textWidth + pad * 2;
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       const canvas = n.firstElementChild;
@@ -432,10 +410,10 @@
       mask.height = pixelHeight;
       const maskCtx = mask.getContext("2d");
       maskCtx.scale(dpr, dpr);
-      maskCtx.font = `${fontWeight} ${size}px ${fontFamily}`;
+      maskCtx.font = `${picker.hasFont(i) ? 400 : 700} ${wordSize}px ${picker.family(i)}`;
       maskCtx.textBaseline = "alphabetic";
       const x = pad;
-      const y = pad + size * 0.88;
+      const y = pad + wordSize * 0.88;
       maskCtx.fillStyle = "#fff";
       maskCtx.fillText(words[i], x, y);
       const maskData = maskCtx.getImageData(0, 0, pixelWidth, pixelHeight).data;
@@ -453,6 +431,7 @@
       ctx.putImageData(new ImageData(result, pixelWidth, pixelHeight), 0, 0);
       n.classList.toggle("sel", words.length > 1 && !isAll() && state.sel.includes(i));
     });
+    picker.arrange(nodes, naturalWidth);
     preview.classList.toggle("each", words.length > 1);
   }
 

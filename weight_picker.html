@@ -53,6 +53,7 @@
 <div class="bar">
   <button id="done">&#1055;&#1077;&#1088;&#1077;&#1076;&#1072;&#1090;&#1080; &#1076;&#1072;&#1083;&#1110;</button>
 </div>
+<script src="picker_layout.js?v=1"></script>
 <script>
   const tg = window.Telegram.WebApp;
   tg.ready();
@@ -240,34 +241,22 @@
     return true;
   }
 
-  let otFont = null;
-  if (fontId && window.opentype) {
-    (async () => {
-      for (const ext of ["ttf", "otf"]) {
-        try {
-          const response = await fetch(`fonts/${fontId}.${ext}`);
-          if (!response.ok) continue;
-          otFont = opentype.parse(await response.arrayBuffer());
-          render();
-          return;
-        } catch (e) { /* try next extension */ }
-      }
-    })();
-  }
+  const picker = createPickerLayout(params, words, fontId, preview);
+  picker.load().then(render);
 
   function render() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const available = preview.clientWidth - 64;
-    if (!otFont || !window.ClipperLib) {
+    if (!window.ClipperLib || !words.every((_, i) => picker.vector(i))) {
       const hasConnectable = renderFallback(dpr, available);
       updateConnectAvailability(hasConnectable);
       return;
     }
-    const inkWidths = words.map((w) => {
-      const b = otFont.getPath(w, 0, 0, 100).getBoundingBox();
+    const inkWidths = words.map((w, i) => {
+      const b = picker.vector(i).getPath(w, 0, 0, 100).getBoundingBox();
       return b.x2 - b.x1;
     });
-    const reference = Math.max(...inkWidths);
+    const reference = Math.max(...inkWidths.map((width, i) => width * picker.scales[i]));
     let size = 100;
     for (let k = 0; k < 3; k++) {
       const need = reference * size / 100 * (1 + 2 * weight / 100);
@@ -278,7 +267,7 @@
     const pad = radius + 2;
     let hasConnectable = false;
     nodes.forEach((canvas, i) => {
-      const path = otFont.getPath(words[i], 0, 0, size);
+      const path = picker.vector(i).getPath(words[i], 0, 0, size * picker.scales[i]);
       const box = path.getBoundingBox();
       const cssWidth = box.x2 - box.x1 + pad * 2;
       const cssHeight = box.y2 - box.y1 + pad * 2;
@@ -292,6 +281,7 @@
       fillPaths(ctx, radius > 0 ? roundOffset(text, radius, dpr) : text, "#26352e");
       hasConnectable = connectRasterComponents(ctx, canvas) || hasConnectable;
     });
+    picker.arrange(nodes, Math.max(...inkWidths) * size / 100);
     updateConnectAvailability(hasConnectable);
   }
 
@@ -305,33 +295,36 @@
 
   // Used until the font file is loaded or when it is not published next to the page.
   function renderFallback(dpr, available) {
-    const family = '"Lobster", "Brush Script MT", cursive, system-ui';
     const measure = document.createElement("canvas").getContext("2d");
-    measure.font = `700 100px ${family}`;
-    const widths = words.map((w) => measure.measureText(w).width);
-    const longest = Math.max(...widths);
+    const widths = words.map((w, i) => {
+      measure.font = `${picker.hasFont(i) ? 400 : 700} 100px ${picker.family(i)}`;
+      return measure.measureText(w).width;
+    });
+    const longest = Math.max(...widths.map((width, i) => width * picker.scales[i]));
     const size = Math.min(110, 100 * available / (longest * (1 + 2 * weight / 100)));
     const radius = weight / 100 * longest * size / 100;
     let hasConnectable = false;
     nodes.forEach((canvas, i) => {
       const pad = radius + 2;
-      const cssWidth = widths[i] * size / 100 + pad * 2;
-      const cssHeight = size * 1.2 + pad * 2;
+      const wordSize = size * picker.scales[i];
+      const cssWidth = widths[i] * wordSize / 100 + pad * 2;
+      const cssHeight = wordSize * 1.2 + pad * 2;
       canvas.style.width = `${cssWidth}px`;
       canvas.style.height = `${cssHeight}px`;
       canvas.width = Math.ceil(cssWidth * dpr);
       canvas.height = Math.ceil(cssHeight * dpr);
       const ctx = canvas.getContext("2d");
       ctx.scale(dpr, dpr);
-      ctx.font = `700 ${size}px ${family}`;
+      ctx.font = `${picker.hasFont(i) ? 400 : 700} ${wordSize}px ${picker.family(i)}`;
       ctx.fillStyle = ctx.strokeStyle = "#26352e";
       ctx.lineJoin = "round";
       ctx.lineWidth = radius * 2;
-      const y = pad + size * 0.88;
+      const y = pad + wordSize * 0.88;
       if (radius > 0) ctx.strokeText(words[i], pad, y);
       ctx.fillText(words[i], pad, y);
       hasConnectable = connectRasterComponents(ctx, canvas) || hasConnectable;
     });
+    picker.arrange(nodes, Math.max(...widths) * size / 100);
     return hasConnectable;
   }
 
