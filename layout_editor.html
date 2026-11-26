@@ -54,6 +54,11 @@
     <span id="fontname"></span>
   </div>
   <div id="samples" aria-label="Зразки шрифтів"></div>
+  <div class="controls" style="margin-top: 8px" role="group" aria-label="Розмір вибраного слова">
+    <button id="smaller" type="button" aria-label="Зменшити слово">−</button>
+    <output id="word-size" aria-live="polite">100%</output>
+    <button id="larger" type="button" aria-label="Збільшити слово">+</button>
+  </div>
 </div>
 <div id="wordlist"></div>
 <div class="bar"><button id="done" disabled>Зберегти макет</button></div>
@@ -72,13 +77,32 @@
   const state = words.map((word, i) => ({
     word, font: saved[i]?.font_number ?? initialFont, x: saved[i]?.x ?? 50,
     y: saved[i]?.y ?? (i + 1) * 100 / (words.length + 1),
+    size: Math.max(80, Math.min(120, saved[i]?.size ?? 100)),
   }));
   let selected = 0;
   let activeDrag = null;
+  let viewScale = 1;
   const faceCache = new Map();
   const measure = document.createElement("canvas").getContext("2d");
   const done = document.getElementById("done");
   const status = document.getElementById("fontname");
+  const smaller = document.getElementById("smaller");
+  const larger = document.getElementById("larger");
+
+  function syncSize() {
+    const size = state[selected].size;
+    document.getElementById("word-size").textContent = `${size}%`;
+    smaller.disabled = size <= 80;
+    larger.disabled = size >= 120;
+  }
+
+  function resizeWord(step) {
+    state[selected].size = Math.max(80, Math.min(120, state[selected].size + step));
+    syncSize();
+    renderFonts();
+  }
+  smaller.addEventListener("click", () => resizeWord(-1));
+  larger.addEventListener("click", () => resizeWord(1));
 
   function loadFace(number) {
     if (!faceCache.has(number)) {
@@ -100,6 +124,7 @@
 
   function choose(index) {
     selected = index;
+    syncSize();
     fontInput.value = state[index].font;
     document.getElementById("which").textContent = `«${state[index].word}» — шрифт`;
     document.querySelectorAll(".word").forEach((node, i) => node.classList.toggle("selected", i === index));
@@ -139,9 +164,21 @@
       return { family, bounds };
     });
     const widths = metrics.map(({ bounds }) => bounds.actualBoundingBoxLeft + bounds.actualBoundingBoxRight);
-    const scale = canvas.clientWidth / (1.25 * Math.max(1, ...widths));
+    const baseScale = canvas.clientWidth / (1.25 * Math.max(1, ...widths));
+    viewScale = 1 / Math.max(1, ...state.map((item, i) => {
+      const bounds = metrics[i].bounds;
+      const scale = baseScale * item.size / 100;
+      return Math.max(
+        Math.abs(item.x - 50) / 50 + (widths[i] * scale + 8) / canvas.clientWidth,
+        Math.abs(item.y - 50) / 50
+          + ((bounds.actualBoundingBoxAscent + bounds.actualBoundingBoxDescent) * scale + 8) / canvas.clientHeight,
+      );
+    }));
+    const canvasScale = baseScale * viewScale;
     const pixelRatio = Math.min(2, window.devicePixelRatio || 1);
     nodes.forEach((node, i) => {
+      placeWord(node, state[i]);
+      const scale = canvasScale * state[i].size / 100;
       const { family, bounds } = metrics[i];
       const drawing = node.firstChild;
       const width = Math.max(24, widths[i] * scale + 4);
@@ -162,31 +199,41 @@
     status.textContent = done.disabled ? "Шрифт недоступний" : "";
   }
 
+  function placeWord(node, item) {
+    node.style.left = `${50 + (item.x - 50) * viewScale}%`;
+    node.style.top = `${50 + (item.y - 50) * viewScale}%`;
+  }
+
+  const modelPosition = (position, start, length) => 50 + ((position - start) / length * 100 - 50) / viewScale;
+
   words.forEach((word, i) => {
     const node = document.createElement("button");
     node.className = "word";
     node.ariaLabel = word;
     node.appendChild(document.createElement("canvas"));
     node.addEventListener("click", () => choose(i));
-    node.style.left = `${state[i].x}%`; node.style.top = `${state[i].y}%`;
+    placeWord(node, state[i]);
     node.addEventListener("pointerdown", (event) => {
       event.preventDefault(); choose(i);
       const rect = canvas.getBoundingClientRect();
       activeDrag = {
         id: event.pointerId,
-        dx: (event.clientX - rect.left) / rect.width * 100 - state[i].x,
-        dy: (event.clientY - rect.top) / rect.height * 100 - state[i].y,
+        dx: modelPosition(event.clientX, rect.left, rect.width) - state[i].x,
+        dy: modelPosition(event.clientY, rect.top, rect.height) - state[i].y,
       };
       node.setPointerCapture(event.pointerId);
     });
     node.addEventListener("pointermove", (event) => {
       if (!activeDrag || activeDrag.id !== event.pointerId) return;
       const rect = canvas.getBoundingClientRect();
-      state[i].x = Math.max(0, Math.min(100, (event.clientX - rect.left) / rect.width * 100 - activeDrag.dx));
-      state[i].y = Math.max(0, Math.min(100, (event.clientY - rect.top) / rect.height * 100 - activeDrag.dy));
-      node.style.left = `${state[i].x}%`; node.style.top = `${state[i].y}%`;
+      state[i].x = Math.max(0, Math.min(100, modelPosition(event.clientX, rect.left, rect.width) - activeDrag.dx));
+      state[i].y = Math.max(0, Math.min(100, modelPosition(event.clientY, rect.top, rect.height) - activeDrag.dy));
+      placeWord(node, state[i]);
     });
-    node.addEventListener("lostpointercapture", () => { activeDrag = null; });
+    node.addEventListener("lostpointercapture", () => {
+      activeDrag = null;
+      renderFonts();
+    });
     canvas.appendChild(node); nodes.push(node);
     const chip = document.createElement("button");
     chip.className = "chip"; chip.textContent = word; chip.addEventListener("click", () => choose(i));
@@ -209,7 +256,7 @@
   document.getElementById("next").addEventListener("click", () => stepFont(1));
   done.addEventListener("click", () => tg.sendData(JSON.stringify({
     session: params.get("session"),
-    words: state.map(({ font, x, y }) => ({ font, x: +x.toFixed(2), y: +y.toFixed(2) })),
+    words: state.map(({ font, x, y, size }) => ({ font, x: +x.toFixed(2), y: +y.toFixed(2), size })),
   })));
   choose(0);
   renderFonts();
