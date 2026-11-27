@@ -32,6 +32,7 @@
   #done { display: block; width: 100%; max-width: 560px; margin: 0 auto; padding: 9px; font-size: 16px;
           border: none; border-radius: 10px; background: var(--tg-theme-button-color, #2481cc);
           color: var(--tg-theme-button-text-color, #fff); }
+  .offset, .option { background: color-mix(in srgb, var(--tg-theme-secondary-bg-color,#eee) 88%, #d99452); }
 </style>
 </head>
 <body>
@@ -53,7 +54,7 @@
 <div class="bar">
   <button id="done">&#1055;&#1077;&#1088;&#1077;&#1076;&#1072;&#1090;&#1080; &#1076;&#1072;&#1083;&#1110;</button>
 </div>
-<script src="picker_layout.js?v=3"></script>
+<script src="picker_layout.js?v=4"></script>
 <script>
   const tg = window.Telegram.WebApp;
   tg.ready();

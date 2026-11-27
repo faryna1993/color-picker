@@ -16,24 +16,39 @@ function mountPickerEditor(params, preview, words, onLayout, selection) {
   panel.className = "layout-controls";
   panel.innerHTML = `
     <div class="layout-row">
-      <label>Шрифт <select aria-label="Номер шрифту"></select></label>
+      <div class="layout-font" role="group" aria-label="Шрифт">
+        <span>Шрифт</span>
+        <button type="button" data-step="-1" aria-label="Попередній шрифт">‹</button>
+        <select aria-label="Номер шрифту"></select>
+        <button type="button" data-step="1" aria-label="Наступний шрифт">›</button>
+      </div>
       <label>Розмір <input type="range" min="80" max="120" step="1"
         aria-label="Розмір слова"><output></output></label>
     </div>
-    <div class="layout-words" aria-label="Вибір слова"></div>`;
+    <div class="layout-selection">
+      <div class="layout-words" aria-label="Вибір слова"></div>
+    </div>`;
   const style = document.createElement("style");
   style.textContent = `
-    .layout-controls { margin:0 0 10px; padding:8px; border-radius:10px;
-      background:var(--tg-theme-secondary-bg-color,#eee); font-size:14px; }
-    .layout-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; }
+    .layout-controls { display:grid; gap:6px; margin:0 0 10px; font-size:14px; }
+    .layout-row,.layout-selection { padding:8px; border-radius:10px; background:var(--tg-theme-secondary-bg-color,#eee); }
+    .layout-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px;
+      background:color-mix(in srgb,var(--tg-theme-secondary-bg-color,#eee) 84%,#429ee8); }
+    .layout-selection { display:flex; align-items:center; flex-wrap:wrap; gap:6px 12px;
+      background:color-mix(in srgb,var(--tg-theme-secondary-bg-color,#eee) 85%,#a879dd); }
+    .layout-selection[hidden] { display:none; }
+    .layout-selection label { display:flex; align-items:center; gap:6px; margin:0; }
+    .layout-font { display:flex; align-items:center; gap:4px; }
+    .layout-font button { min-width:34px; }
+    .layout-font button:disabled { opacity:.4; }
     .layout-row label { display:flex; align-items:center; gap:6px; }
     .layout-row label:last-child { flex:1; }
     .layout-row input[type=range] { width:85px; flex:1; }
-    .layout-row select,.layout-words button { border:1px solid #8888; border-radius:8px;
+    .layout-row select,.layout-font button,.layout-words button { border:1px solid #8888; border-radius:8px;
       min-height:30px; padding:3px 8px; font:inherit; color:inherit;
       background:var(--tg-theme-bg-color,#fff); }
     .layout-row output { min-width:4ch; text-align:right; }
-    .layout-words { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+    .layout-words { display:flex; flex-wrap:wrap; gap:6px; }
     .layout-words button[aria-pressed=true] { border-color:var(--tg-theme-button-color,#2481cc); }
     #preview .word.layout-draggable { touch-action:none; user-select:none; cursor:grab; }
     #preview .word.layout-dragging { z-index:2; cursor:grabbing; }
@@ -41,18 +56,23 @@ function mountPickerEditor(params, preview, words, onLayout, selection) {
   `;
   document.head.append(style);
   preview.after(panel);
+  const wordSelection = panel.querySelector(".layout-selection");
+  wordSelection.hidden = words.length < 2;
+  const existingAll = document.getElementById("modes");
+  if (existingAll) wordSelection.append(existingAll);
   if (!selection && words.length > 1) {
     const label = document.createElement("label");
     const all = document.createElement("input");
     all.type = "checkbox";
     all.checked = localAll;
     label.append(all, " Усі слова разом");
-    panel.prepend(label);
+    wordSelection.append(label);
     all.addEventListener("change", () => { localAll = all.checked; sync(); });
     selection = {get: () => localAll ? words.map((_, i) => i) : [selected],
       select: i => { selected = i; localAll = false; all.checked = false; }};
   }
   const select = panel.querySelector("select");
+  const arrows = [...panel.querySelectorAll("[data-step]")];
   const slider = panel.querySelector("input[type=range]");
   const output = panel.querySelector("output");
   const nodes = [...preview.children];
@@ -72,6 +92,8 @@ function mountPickerEditor(params, preview, words, onLayout, selection) {
     const indexes = targets();
     const active = indexes.includes(selected) ? selected : indexes[0];
     select.value = layout?.[active]?.font_number ?? baseFont;
+    arrows[0].disabled = select.selectedIndex <= 0;
+    arrows[1].disabled = select.selectedIndex === fonts.length - 1;
     slider.value = layout?.[active]?.size ?? 100;
     output.textContent = slider.value + "%";
     chips.forEach((chip, i) => {
@@ -104,6 +126,12 @@ function mountPickerEditor(params, preview, words, onLayout, selection) {
     publish(key === "font_number");
   }
   select.addEventListener("change", () => change("font_number", Number(select.value)));
+  for (const arrow of arrows) {
+    arrow.addEventListener("click", () => {
+      const index = select.selectedIndex + Number(arrow.dataset.step);
+      if (index >= 0 && index < fonts.length) change("font_number", fonts[index]);
+    });
+  }
   slider.addEventListener("input", () => change("size", Number(slider.value)));
 
   nodes.forEach((node, i) => {

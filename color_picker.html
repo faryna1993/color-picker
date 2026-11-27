@@ -64,6 +64,8 @@
   #done:disabled { opacity: .45; }
   #missing { text-align: center; font-size: 11px; opacity: .75; margin-bottom: 4px; }
   #missing:empty { display: none; }
+  .offset, .option { background: color-mix(in srgb, var(--tg-theme-secondary-bg-color,#eee) 88%, #d99452); }
+  .tabs .tab, .card { background: color-mix(in srgb, var(--tg-theme-secondary-bg-color,#eee) 88%, #55a982); }
 </style>
 </head>
 <body>
@@ -106,7 +108,7 @@
   <div id="missing"></div>
   <button id="done" disabled>Передати далі</button>
 </div>
-<script src="picker_layout.js?v=3"></script>
+<script src="picker_layout.js?v=4"></script>
 <script>
   const tg = window.Telegram.WebApp;
   tg.ready();
