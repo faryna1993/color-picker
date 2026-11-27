@@ -2,6 +2,8 @@ function mountPickerEditor(params, preview, words, onLayout, selection) {
   const fonts = (params.get("fonts") || "").split(",").map(Number).filter(n => n > 0);
   const sendUnchanged = payload => payload;
   sendUnchanged.sync = () => {};
+  sendUnchanged.targets = () => words.map((_, i) => i);
+  sendUnchanged.ensure = () => {};
   if (!fonts.length || !params.get("session")) return sendUnchanged;
 
   const baseFont = Number(params.get("font").split("-").at(-1));
@@ -100,6 +102,7 @@ function mountPickerEditor(params, preview, words, onLayout, selection) {
       chip.setAttribute("aria-pressed", indexes.includes(i));
       nodes[i].classList.toggle("layout-selected", indexes.length === 1 && indexes[0] === i);
     });
+    preview.dispatchEvent(new CustomEvent("pickerselection", {detail: indexes}));
   }
 
   function choose(i) {
@@ -188,6 +191,12 @@ function mountPickerEditor(params, preview, words, onLayout, selection) {
     })),
   } : payload;
   submit.sync = sync;
+  submit.targets = targets;
+  submit.ensure = () => {
+    if (layout) return;
+    layout = initialLayout();
+    publish();
+  };
   return submit;
 }
 

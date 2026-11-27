@@ -54,7 +54,7 @@
 <div class="bar">
   <button id="done">&#1055;&#1077;&#1088;&#1077;&#1076;&#1072;&#1090;&#1080; &#1076;&#1072;&#1083;&#1110;</button>
 </div>
-<script src="picker_layout.js?v=4"></script>
+<script src="picker_layout.js?v=5"></script>
 <script>
   const tg = window.Telegram.WebApp;
   tg.ready();
@@ -81,7 +81,9 @@
   syncConnectStatus();
   const fontId = (params.get("font") || "inscription-1").replace(/[^a-z0-9-]/gi, "");
   const parsed = parseFloat(params.get("weight"));
-  let weight = isNaN(parsed) ? 0 : Math.min(1.5, Math.max(0, parsed));
+  const defaultWeight = isNaN(parsed) ? 0 : Math.min(1.5, Math.max(0, parsed));
+  const savedWeights = JSON.parse(params.get("weights") || "[]");
+  const weights = words.map((_, i) => savedWeights[i] ?? defaultWeight);
 
   const preview = document.getElementById("preview");
   const slider = document.getElementById("weight");
@@ -264,14 +266,14 @@
     const reference = Math.max(...inkWidths.map((width, i) => width * picker.scales[i]));
     let size = 100;
     for (let k = 0; k < 3; k++) {
-      const need = reference * size / 100 * (1 + 2 * weight / 100);
+      const need = reference * size / 100 * (1 + 2 * Math.max(...weights) / 100);
       size = Math.min(size * available / need, 110);
     }
     const longestPx = reference * size / 100;
-    const radius = weight / 100 * longestPx;
-    const pad = radius + 2;
     let hasConnectable = false;
     nodes.forEach((canvas, i) => {
+      const radius = weights[i] / 100 * longestPx;
+      const pad = radius + 2;
       const path = picker.vector(i).getPath(words[i], 0, 0, size * picker.scales[i]);
       const box = path.getBoundingBox();
       const cssWidth = box.x2 - box.x1 + pad * 2;
@@ -306,10 +308,10 @@
       return measure.measureText(w).width;
     });
     const longest = Math.max(...widths.map((width, i) => width * picker.scales[i]));
-    const size = Math.min(110, 100 * available / (longest * (1 + 2 * weight / 100)));
-    const radius = weight / 100 * longest * size / 100;
+    const size = Math.min(110, 100 * available / (longest * (1 + 2 * Math.max(...weights) / 100)));
     let hasConnectable = false;
     nodes.forEach((canvas, i) => {
+      const radius = weights[i] / 100 * longest * size / 100;
       const pad = radius + 2;
       const wordSize = size * picker.scales[i];
       const cssWidth = widths[i] * wordSize / 100 + pad * 2;
@@ -333,16 +335,30 @@
     return hasConnectable;
   }
 
-  function syncUi() {
+  function syncWeight() {
+    const indexes = withLayout.targets();
+    const weight = weights[indexes[0]];
     slider.value = weight;
-    document.getElementById("wval").textContent = weight > 0 ? "+" + fmt(weight) : "\u0441\u0442\u0430\u043d\u0434\u0430\u0440\u0442";
+    document.getElementById("wval").textContent = indexes.some(i => weights[i] !== weight)
+      ? "різна" : weight > 0 ? "+" + fmt(weight) : "стандарт";
+  }
+
+  function syncUi() {
+    syncWeight();
     render();
   }
 
-  slider.addEventListener("input", () => { weight = parseFloat(slider.value); syncUi(); });
+  preview.addEventListener("pickerselection", syncWeight);
+  slider.addEventListener("input", () => {
+    const weight = Number(slider.value);
+    for (const i of withLayout.targets()) weights[i] = weight;
+    if (weights.some(value => value !== weights[0])) withLayout.ensure();
+    syncUi();
+  });
   document.getElementById("done").addEventListener("click", () => {
     tg.sendData(JSON.stringify(withLayout({
-      weight: Math.round(weight * 10) / 10,
+      weight: weights[0],
+      ...(weights.some(value => value !== weights[0]) ? {weights} : {}),
       connect_all: connectAll.checked
     })));
   });
