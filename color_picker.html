@@ -106,7 +106,7 @@
   <div id="missing"></div>
   <button id="done" disabled>Передати далі</button>
 </div>
-<script src="picker_layout.js?v=2"></script>
+<script src="picker_layout.js?v=3"></script>
 <script>
   const tg = window.Telegram.WebApp;
   tg.ready();
@@ -140,10 +140,6 @@
   const preview = document.getElementById("preview");
   let picker = createPickerLayout(params, words, fontId, preview);
   picker.load().then(render);
-  const withLayout = mountPickerEditor(params, preview, () => {
-    picker = createPickerLayout(params, words, fontId, preview);
-    picker.load().then(render);
-  });
   const sv = document.getElementById("sv");
   const hueBar = document.getElementById("hue");
   const hex = document.getElementById("hex");
@@ -158,12 +154,20 @@
     canvas.setAttribute("aria-label", w);
     el.appendChild(canvas);
     el.addEventListener("click", () => {
-      if (words.length < 2) return;
+      if (words.length < 2 || params.has("fonts")) return;
       state.sel = [i];
       syncUi();
     });
     preview.appendChild(el);
     return el;
+  });
+
+  const withLayout = mountPickerEditor(params, preview, words, () => {
+    picker = createPickerLayout(params, words, fontId, preview);
+    picker.load().then(render);
+  }, {
+    get: () => state.sel,
+    select: i => { state.sel = [i]; syncUi(); },
   });
 
   const targets = () => state.sel;
@@ -466,6 +470,7 @@
     wslider.value = cur.weight;
     document.getElementById("wval").textContent = cur.weight > 0 ? fmt(cur.weight) : "стандарт";
     document.getElementById("all-chk").checked = isAll();
+    withLayout.sync();
 
     const missing = [];
     styles.forEach((s, i) => {
