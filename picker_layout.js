@@ -1,3 +1,53 @@
+function mountPickerEditor(params, preview, onLayout) {
+  let changes;
+  if (!params.get("fonts") || !params.get("session")) return payload => payload;
+
+  const open = document.createElement("button");
+  open.type = "button";
+  open.textContent = "Налаштувати макет";
+  open.style.cssText = "width:100%;padding:10px;margin:0 0 10px;border:0;border-radius:10px;font:inherit;color:inherit;background:var(--tg-theme-secondary-bg-color,#eee)";
+  preview.after(open);
+
+  const dialog = document.createElement("dialog");
+  dialog.setAttribute("aria-label", "Редактор макета");
+  dialog.style.cssText = "position:fixed;inset:0;margin:0;width:100%;height:100%;max-width:none;max-height:none;padding:0;border:0;background:var(--tg-theme-bg-color,#fff)";
+  const frame = document.createElement("iframe");
+  frame.title = "Редактор макета";
+  frame.style.cssText = "display:block;width:100%;height:100%;border:0";
+  dialog.append(frame);
+  document.body.append(dialog);
+
+  open.addEventListener("click", () => {
+    const font = params.get("font");
+    const query = new URLSearchParams({
+      text: params.get("text"),
+      mode: font.replace(/-\d+$/, ""),
+      font: font.split("-").at(-1),
+      fonts: params.get("fonts"),
+      layout: params.get("layout") || "[]",
+      embedded: "1",
+      v: "4",
+    });
+    frame.src = "layout_editor.html?" + query;
+    dialog.showModal();
+  });
+
+  window.addEventListener("message", event => {
+    if (event.origin !== location.origin || event.source !== frame.contentWindow || !dialog.open) return;
+    if (event.data?.type === "layout-cancel") {
+      dialog.close();
+    } else if (event.data?.type === "layout-apply" && Array.isArray(event.data.words)) {
+      changes = event.data.words;
+      params.set("layout", JSON.stringify(changes.map(({font, ...item}) => ({
+        ...item, font_number: font,
+      }))));
+      dialog.close();
+      onLayout();
+    }
+  });
+  return payload => changes ? {...payload, words: changes, session: params.get("session")} : payload;
+}
+
 function createPickerLayout(params, words, baseFont, preview) {
   let items;
   try { items = JSON.parse(params.get("layout") || "null"); } catch (_) { items = null; }

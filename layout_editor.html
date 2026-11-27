@@ -63,9 +63,13 @@
 <div id="wordlist"></div>
 <div class="bar"><button id="done" disabled>Зберегти макет</button></div>
 <script>
-  const tg = window.Telegram.WebApp;
-  tg.ready(); tg.expand();
   const params = new URLSearchParams(location.search);
+  const embedded = params.get("embedded") === "1" && window.parent !== window;
+  const tg = window.Telegram?.WebApp;
+  if (!embedded) {
+    tg?.ready();
+    tg?.expand();
+  }
   const words = (params.get("text") || "Напис").trim().split(/\s+/).filter(Boolean).slice(0, 12);
   const mode = (params.get("mode") || "inscription").replace(/[^a-z]/gi, "");
   const fonts = (params.get("fonts") || "1").split(",").map(Number).filter(n => Number.isInteger(n) && n > 0);
@@ -254,10 +258,22 @@
   fontInput.addEventListener("change", () => setFont(fontInput.value));
   document.getElementById("prev").addEventListener("click", () => stepFont(-1));
   document.getElementById("next").addEventListener("click", () => stepFont(1));
-  done.addEventListener("click", () => tg.sendData(JSON.stringify({
-    session: params.get("session"),
-    words: state.map(({ font, x, y, size }) => ({ font, x: +x.toFixed(2), y: +y.toFixed(2), size })),
-  })));
+  if (embedded) {
+    done.textContent = "Застосувати макет";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.textContent = "Повернутися";
+    cancel.addEventListener("click", () => window.parent.postMessage({type: "layout-cancel"}, location.origin));
+    done.before(cancel);
+  }
+  done.addEventListener("click", () => {
+    const words = state.map(({font, x, y, size}) => ({font, x: +x.toFixed(2), y: +y.toFixed(2), size}));
+    if (embedded) {
+      window.parent.postMessage({type: "layout-apply", words}, location.origin);
+    } else {
+      tg?.sendData(JSON.stringify({session: params.get("session"), words}));
+    }
+  });
   choose(0);
   renderFonts();
   window.addEventListener("resize", renderFonts);

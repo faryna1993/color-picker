@@ -106,7 +106,7 @@
   <div id="missing"></div>
   <button id="done" disabled>Передати далі</button>
 </div>
-<script src="picker_layout.js?v=1"></script>
+<script src="picker_layout.js?v=2"></script>
 <script>
   const tg = window.Telegram.WebApp;
   tg.ready();
@@ -138,8 +138,12 @@
   const isAll = () => state.sel.length === words.length;
 
   const preview = document.getElementById("preview");
-  const picker = createPickerLayout(params, words, fontId, preview);
+  let picker = createPickerLayout(params, words, fontId, preview);
   picker.load().then(render);
+  const withLayout = mountPickerEditor(params, preview, () => {
+    picker = createPickerLayout(params, words, fontId, preview);
+    picker.load().then(render);
+  });
   const sv = document.getElementById("sv");
   const hueBar = document.getElementById("hue");
   const hex = document.getElementById("hex");
@@ -540,8 +544,8 @@
 
   doneBtn.addEventListener("click", () => {
     if (doneBtn.disabled) return;
-    tg.sendData(JSON.stringify({ styles: styles.map((s) => ({
-      text_color: s.text, bg_color: s.bg || "#ffffff", offset: Math.round(s.offset * 10) / 10, weight: Math.round(s.weight * 10) / 10 })) }));
+    tg.sendData(JSON.stringify(withLayout({ styles: styles.map((s) => ({
+      text_color: s.text, bg_color: s.bg || "#ffffff", offset: Math.round(s.offset * 10) / 10, weight: Math.round(s.weight * 10) / 10 })) })));
   });
   window.addEventListener("resize", render);
 

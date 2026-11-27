@@ -53,7 +53,7 @@
 <div class="bar">
   <button id="done">&#1055;&#1077;&#1088;&#1077;&#1076;&#1072;&#1090;&#1080; &#1076;&#1072;&#1083;&#1110;</button>
 </div>
-<script src="picker_layout.js?v=1"></script>
+<script src="picker_layout.js?v=2"></script>
 <script>
   const tg = window.Telegram.WebApp;
   tg.ready();
@@ -241,8 +241,12 @@
     return true;
   }
 
-  const picker = createPickerLayout(params, words, fontId, preview);
+  let picker = createPickerLayout(params, words, fontId, preview);
   picker.load().then(render);
+  const withLayout = mountPickerEditor(params, preview, () => {
+    picker = createPickerLayout(params, words, fontId, preview);
+    picker.load().then(render);
+  });
 
   function render() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -336,10 +340,10 @@
 
   slider.addEventListener("input", () => { weight = parseFloat(slider.value); syncUi(); });
   document.getElementById("done").addEventListener("click", () => {
-    tg.sendData(JSON.stringify({
+    tg.sendData(JSON.stringify(withLayout({
       weight: Math.round(weight * 10) / 10,
       connect_all: connectAll.checked
-    }));
+    })));
   });
   window.addEventListener("resize", render);
 
